@@ -109,7 +109,7 @@ const ImageGenerator = () => {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.95 }}
                                 href={generatedImage}
-                                download={`coolshot-ai-${Date.now()}.png`}
+                                download={`cool-shot-ai-${Date.now()}.png`}
                                 className="bg-gradient-to-r from-white to-gray-100 text-gray-900 px-8 py-4 rounded-2xl font-bold text-lg flex items-center gap-3 shadow-2xl hover:shadow-white/20 transition-all"
                             >
                                 <Download size={24} />
