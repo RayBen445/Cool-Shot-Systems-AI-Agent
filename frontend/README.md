@@ -1,16 +1,83 @@
-# React + Vite
+# Cool-Shot Systems AI Agent - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, animated UI for the Local AI Assistant featuring chat and image generation capabilities.
 
-Currently, two official plugins are available:
+## 🎨 Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** - UI Library
+- **Vite** - Build Tool & Dev Server
+- **Tailwind CSS v4** - Styling
+- **Framer Motion** - Animations
+- **Lucide React** - Icons
 
-## React Compiler
+## 🚀 Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Development
 
-## Expanding the ESLint configuration
+```bash
+# Install dependencies
+npm install
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# Start dev server
+npm run dev
+```
+
+Visit `http://localhost:5173` to see the app.
+
+### Build for Production
+
+```bash
+# Build the app
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## 🌐 Environment Variables
+
+Create a `.env` file in this directory (see `.env.example`):
+
+```env
+VITE_API_URL=http://localhost:7860
+```
+
+For production, set this to your deployed backend URL.
+
+## 📦 Deployment to Vercel
+
+See the detailed guide: **[../VERCEL_DEPLOYMENT.md](../VERCEL_DEPLOYMENT.md)**
+
+Quick deploy:
+1. Connect your repo to Vercel
+2. Set root directory to `frontend`
+3. Add environment variable: `VITE_API_URL`
+4. Deploy!
+
+## 🧪 Linting
+
+```bash
+npm run lint
+```
+
+## 📁 Project Structure
+
+```
+src/
+├── components/
+│   ├── ChatInterface.jsx    # Chat UI component
+│   └── ImageGenerator.jsx   # Image generation UI
+├── assets/                   # Static assets
+├── App.jsx                   # Main app component
+├── App.css                   # App-specific styles
+├── main.jsx                  # App entry point
+└── index.css                 # Global styles (Tailwind)
+```
+
+## 🎯 Features
+
+- **Chat Interface**: Real-time chat with AI assistant
+- **Image Generation**: AI-powered image creation
+- **Smooth Animations**: Framer Motion transitions
+- **Glassmorphism UI**: Modern, translucent design
+- **Responsive**: Works on all screen sizes

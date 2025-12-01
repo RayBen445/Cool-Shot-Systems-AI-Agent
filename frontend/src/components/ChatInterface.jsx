@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Bot, User, Loader2 } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 
 const ChatInterface = () => {
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: "Hello! I'm your local AI assistant. How can I help you today?" }
+        { role: 'assistant', content: "Hello! I'm your Cool-Shot AI assistant. How can I help you today?" }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -28,11 +28,10 @@ const ChatInterface = () => {
         setIsLoading(true);
 
         try {
-            // Prepare history for the backend (excluding the last user message we just added locally)
-            // In a real app, you might want to send the whole history or manage it better
             const history = messages.map(m => ({ role: m.role, content: m.content }));
 
-            const response = await fetch('https://professorceo-coolshot-ai-backend.hf.space/chat', {
+            const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
+            const response = await fetch(`${apiUrl}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: userMessage, history: history }),
@@ -42,50 +41,60 @@ const ChatInterface = () => {
             setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
         } catch (error) {
             console.error("Error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error connecting to the local brain." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error connecting to the backend." }]);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="flex flex-col h-full max-w-4xl mx-auto bg-white/5 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+        <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {messages.map((msg, index) => (
                     <motion.div
                         key={index}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className={`flex items-start gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                     >
-                        <div className={`p-2 rounded-full ${msg.role === 'user' ? 'bg-blue-600' : 'bg-purple-600'}`}>
-                            {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
-                        </div>
-                        <div
-                            className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user'
-                                ? 'bg-blue-600/20 border border-blue-500/30 text-blue-100 rounded-tr-none'
-                                : 'bg-purple-600/20 border border-purple-500/30 text-purple-100 rounded-tl-none'
-                                }`}
+                        <motion.div 
+                            whileHover={{ scale: 1.1, rotate: 5 }}
+                            className={`p-3 rounded-2xl shadow-lg ${
+                                msg.role === 'user' 
+                                    ? 'bg-gradient-to-br from-blue-600 to-blue-500' 
+                                    : 'bg-gradient-to-br from-purple-600 to-purple-500'
+                            }`}
                         >
-                            <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                        </div>
+                            {msg.role === 'user' ? <User size={22} /> : <Bot size={22} />}
+                        </motion.div>
+                        <motion.div
+                            whileHover={{ scale: 1.02 }}
+                            className={`max-w-[75%] p-5 rounded-2xl shadow-xl ${
+                                msg.role === 'user'
+                                    ? 'bg-gradient-to-br from-blue-600/30 to-blue-500/20 border border-blue-400/40 text-blue-50 rounded-tr-sm backdrop-blur-sm'
+                                    : 'bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 text-purple-50 rounded-tl-sm backdrop-blur-sm'
+                            }`}
+                        >
+                            <p className="leading-relaxed whitespace-pre-wrap text-base">{msg.content}</p>
+                        </motion.div>
                     </motion.div>
                 ))}
 
                 {isLoading && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex items-start gap-3"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-4"
                     >
-                        <div className="p-2 rounded-full bg-purple-600">
-                            <Bot size={20} />
+                        <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-600 to-purple-500 shadow-lg">
+                            <Bot size={22} />
                         </div>
-                        <div className="bg-purple-600/20 border border-purple-500/30 p-4 rounded-2xl rounded-tl-none flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-300" />
-                            <span className="text-purple-300 text-sm">Thinking...</span>
+                        <div className="bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 backdrop-blur-sm p-5 rounded-2xl rounded-tl-sm flex items-center gap-3 shadow-xl">
+                            <Loader2 className="w-5 h-5 animate-spin text-purple-200" />
+                            <span className="text-purple-200 text-base font-medium">Thinking...</span>
+                            <Sparkles className="w-4 h-4 text-purple-300 animate-pulse" />
                         </div>
                     </motion.div>
                 )}
@@ -93,22 +102,24 @@ const ChatInterface = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-black/20 border-t border-white/5">
-                <form onSubmit={sendMessage} className="flex gap-3">
+            <div className="p-6 bg-gradient-to-r from-black/30 to-black/20 border-t border-white/10 backdrop-blur-sm">
+                <form onSubmit={sendMessage} className="flex gap-4">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Type your message..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                        className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 transition-all backdrop-blur-sm shadow-inner text-base"
                     />
-                    <button
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all duration-200 shadow-lg shadow-blue-900/20"
+                        className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-4 rounded-2xl transition-all duration-200 shadow-lg shadow-blue-500/30 font-semibold"
                     >
-                        <Send size={20} />
-                    </button>
+                        <Send size={22} />
+                    </motion.button>
                 </form>
             </div>
         </div>
