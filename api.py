@@ -41,6 +41,8 @@ async def chat(request: ChatRequest):
         response = chat_engine.generate_response(request.message, request.history)
         return {"response": response}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate-image")
