@@ -29,8 +29,15 @@ class ChatEngine:
         )
 
     def generate_response(self, user_input, history=[]):
+        # System Prompt to define persona
+        system_prompt = {
+            "role": "system",
+            "content": "You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable."
+        }
+        
         # Format the conversation for Phi-3
-        messages = history + [{"role": "user", "content": user_input}]
+        # Ensure system prompt is first
+        messages = [system_prompt] + history + [{"role": "user", "content": user_input}]
         
         generation_args = {
             "max_new_tokens": 500,
