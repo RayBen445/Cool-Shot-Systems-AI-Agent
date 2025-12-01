@@ -17,7 +17,8 @@ class ChatEngine:
             model_id, 
             device_map=self.device, 
             torch_dtype=torch_dtype, 
-            trust_remote_code=True
+            trust_remote_code=True,
+            attn_implementation="eager"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         
