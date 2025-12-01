@@ -4,7 +4,7 @@ import { Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
 
 const ChatInterface = () => {
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: "Hello! I'm your Cool-Shot AI assistant. How can I help you today?" }
+        { role: 'assistant', content: "Hello! I'm your Cool-Shot AI assistant (v2.0). How can I help you today?" }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -93,8 +93,8 @@ const ChatInterface = () => {
                         <motion.div
                             whileHover={{ scale: 1.1, rotate: 5 }}
                             className={`p-3 rounded-2xl shadow-lg ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-blue-600 to-blue-500'
-                                    : 'bg-gradient-to-br from-purple-600 to-purple-500'
+                                ? 'bg-gradient-to-br from-blue-600 to-blue-500'
+                                : 'bg-gradient-to-br from-purple-600 to-purple-500'
                                 }`}
                         >
                             {msg.role === 'user' ? <User size={22} /> : <Bot size={22} />}
@@ -102,8 +102,8 @@ const ChatInterface = () => {
                         <motion.div
                             whileHover={{ scale: 1.02 }}
                             className={`max-w-[75%] p-5 rounded-2xl shadow-xl ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-blue-600/30 to-blue-500/20 border border-blue-400/40 text-blue-50 rounded-tr-sm backdrop-blur-sm'
-                                    : 'bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 text-purple-50 rounded-tl-sm backdrop-blur-sm'
+                                ? 'bg-gradient-to-br from-blue-600/30 to-blue-500/20 border border-blue-400/40 text-blue-50 rounded-tr-sm backdrop-blur-sm'
+                                : 'bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 text-purple-50 rounded-tl-sm backdrop-blur-sm'
                                 }`}
                         >
                             <p className="leading-relaxed whitespace-pre-wrap text-base">{msg.content}</p>
