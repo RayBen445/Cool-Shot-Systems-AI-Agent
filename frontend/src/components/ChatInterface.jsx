@@ -48,7 +48,7 @@ const ChatInterface = () => {
     };
 
     return (
-        <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+        <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 via-purple-500/10 to-pink-500/10 backdrop-blur-xl rounded-3xl shadow-2xl shadow-purple-500/20 overflow-hidden border border-white/30">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {messages.map((msg, index) => (
@@ -63,8 +63,8 @@ const ChatInterface = () => {
                             whileHover={{ scale: 1.1, rotate: 5 }}
                             className={`p-3 rounded-2xl shadow-lg ${
                                 msg.role === 'user' 
-                                    ? 'bg-gradient-to-br from-blue-600 to-blue-500' 
-                                    : 'bg-gradient-to-br from-purple-600 to-purple-500'
+                                    ? 'bg-gradient-to-br from-cyan-600 via-blue-600 to-blue-500 shadow-cyan-500/50' 
+                                    : 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-500 shadow-purple-500/50'
                             }`}
                         >
                             {msg.role === 'user' ? <User size={22} /> : <Bot size={22} />}
@@ -73,8 +73,8 @@ const ChatInterface = () => {
                             whileHover={{ scale: 1.02 }}
                             className={`max-w-[75%] p-5 rounded-2xl shadow-xl ${
                                 msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-blue-600/30 to-blue-500/20 border border-blue-400/40 text-blue-50 rounded-tr-sm backdrop-blur-sm'
-                                    : 'bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 text-purple-50 rounded-tl-sm backdrop-blur-sm'
+                                    ? 'bg-gradient-to-br from-cyan-600/40 via-blue-600/30 to-blue-500/20 border border-cyan-400/50 text-cyan-50 rounded-tr-sm backdrop-blur-sm shadow-cyan-500/30'
+                                    : 'bg-gradient-to-br from-purple-600/40 via-violet-600/30 to-purple-500/20 border border-purple-400/50 text-purple-50 rounded-tl-sm backdrop-blur-sm shadow-purple-500/30'
                             }`}
                         >
                             <p className="leading-relaxed whitespace-pre-wrap text-base">{msg.content}</p>
@@ -88,13 +88,13 @@ const ChatInterface = () => {
                         animate={{ opacity: 1, y: 0 }}
                         className="flex items-start gap-4"
                     >
-                        <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-600 to-purple-500 shadow-lg">
+                        <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-600 via-violet-600 to-purple-500 shadow-lg shadow-purple-500/50">
                             <Bot size={22} />
                         </div>
-                        <div className="bg-gradient-to-br from-purple-600/30 to-purple-500/20 border border-purple-400/40 backdrop-blur-sm p-5 rounded-2xl rounded-tl-sm flex items-center gap-3 shadow-xl">
+                        <div className="bg-gradient-to-br from-purple-600/40 via-violet-600/30 to-purple-500/20 border border-purple-400/50 backdrop-blur-sm p-5 rounded-2xl rounded-tl-sm flex items-center gap-3 shadow-xl shadow-purple-500/30">
                             <Loader2 className="w-5 h-5 animate-spin text-purple-200" />
-                            <span className="text-purple-200 text-base font-medium">Thinking...</span>
-                            <Sparkles className="w-4 h-4 text-purple-300 animate-pulse" />
+                            <span className="text-purple-100 text-base font-medium">Thinking...</span>
+                            <Sparkles className="w-4 h-4 text-pink-300 animate-pulse" />
                         </div>
                     </motion.div>
                 )}
@@ -102,21 +102,21 @@ const ChatInterface = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-6 bg-gradient-to-r from-black/30 to-black/20 border-t border-white/10 backdrop-blur-sm">
+            <div className="p-6 bg-gradient-to-r from-black/40 via-purple-900/30 to-black/40 border-t border-white/20 backdrop-blur-sm">
                 <form onSubmit={sendMessage} className="flex gap-4">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Type your message..."
-                        className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 transition-all backdrop-blur-sm shadow-inner text-base"
+                        className="flex-1 bg-white/10 border border-white/30 rounded-2xl px-6 py-4 text-white placeholder-cyan-200/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 focus:border-cyan-400/60 transition-all backdrop-blur-sm shadow-inner text-base"
                     />
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-4 rounded-2xl transition-all duration-200 shadow-lg shadow-blue-500/30 font-semibold"
+                        className="bg-gradient-to-r from-cyan-600 via-blue-600 to-blue-500 hover:from-cyan-500 hover:via-blue-500 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-4 rounded-2xl transition-all duration-200 shadow-lg shadow-cyan-500/40 font-semibold"
                     >
                         <Send size={22} />
                     </motion.button>
