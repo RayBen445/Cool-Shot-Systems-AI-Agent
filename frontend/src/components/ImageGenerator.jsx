@@ -15,7 +15,8 @@ const ImageGenerator = () => {
         setGeneratedImage(null);
 
         try {
-            const response = await fetch('https://professorceo-coolshot-ai-backend.hf.space/generate-image', {
+            const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
+            const response = await fetch(`${apiUrl}/generate-image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: prompt }),

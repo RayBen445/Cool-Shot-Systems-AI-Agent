@@ -32,7 +32,8 @@ const ChatInterface = () => {
             // In a real app, you might want to send the whole history or manage it better
             const history = messages.map(m => ({ role: m.role, content: m.content }));
 
-            const response = await fetch('https://professorceo-coolshot-ai-backend.hf.space/chat', {
+            const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
+            const response = await fetch(`${apiUrl}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: userMessage, history: history }),
@@ -42,7 +43,7 @@ const ChatInterface = () => {
             setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
         } catch (error) {
             console.error("Error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error connecting to the local brain." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error connecting to the backend." }]);
         } finally {
             setIsLoading(false);
         }

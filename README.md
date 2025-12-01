@@ -58,6 +58,32 @@ A premium **Local AI Assistant** that runs entirely on your machine, featuring a
 * **Backend**: Python, FastAPI, PyTorch, Transformers, Diffusers
 * **Frontend**: React, Vite, Tailwind CSS, Framer Motion, Lucide React
 
+## 🌐 Deployment
+
+### Deploy to Vercel
+
+The frontend can be easily deployed to Vercel for free! See the detailed deployment guide:
+
+📖 **[Vercel Deployment Guide](VERCEL_DEPLOYMENT.md)**
+
+Quick steps:
+1. Fork/clone this repository
+2. Sign up at [Vercel](https://vercel.com)
+3. Import your repository
+4. Set root directory to `frontend`
+5. Add environment variable: `VITE_API_URL` with your backend URL
+6. Deploy!
+
+### Backend Deployment
+
+The backend can be deployed to:
+- **Hugging Face Spaces** (current deployment)
+- **Railway**
+- **Render**
+- **Google Cloud Run / AWS / Azure**
+
+See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for detailed backend deployment options.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
