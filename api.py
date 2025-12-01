@@ -31,6 +31,10 @@ class ChatRequest(BaseModel):
 class ImageRequest(BaseModel):
     prompt: str
 
+@app.get("/")
+def read_root():
+    return {"status": "Backend is running", "message": "Go to /docs to see the API"}
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
