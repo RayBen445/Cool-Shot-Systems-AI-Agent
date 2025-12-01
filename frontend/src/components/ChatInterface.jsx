@@ -79,9 +79,9 @@ const ChatInterface = () => {
     };
 
     return (
-        <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20">
+        <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent min-h-0">
+            <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {messages.map((msg, index) => (
                     <motion.div
                         key={index}
