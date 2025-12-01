@@ -61,7 +61,7 @@ const ChatInterface = () => {
                     >
                         <motion.div 
                             whileHover={{ scale: 1.1, rotate: 5 }}
-                            className={`p-3 rounded-2xl shadow-lg shadow-lg ${
+                            className={`p-3 rounded-2xl shadow-lg ${
                                 msg.role === 'user' 
                                     ? 'bg-gradient-to-br from-cyan-600 via-blue-600 to-blue-500 shadow-cyan-500/50' 
                                     : 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-500 shadow-purple-500/50'
