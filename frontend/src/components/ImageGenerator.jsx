@@ -15,7 +15,7 @@ const ImageGenerator = () => {
         setGeneratedImage(null);
 
         try {
-            const response = await fetch('http://localhost:8000/generate-image', {
+            const response = await fetch('https://professorceo-coolshot-ai-backend.hf.space/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: prompt }),
@@ -58,48 +58,48 @@ const ImageGenerator = () => {
                     {isLoading ? <Loader2 className="animate-spin" /> : <Wand2 />}
                     Generate
                 </button>
-            </button>
-        </form>
 
-      {/* Image Display Area */ }
-    <div className="flex-1 flex items-center justify-center bg-black/20 rounded-2xl border border-white/5 overflow-hidden relative min-h-[400px]">
-        {isLoading ? (
-            <div className="text-center">
-                <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
-                <p className="text-purple-300 animate-pulse">Dreaming up your image...</p>
-            </div>
-        ) : generatedImage ? (
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                className="relative group w-full h-full flex items-center justify-center"
-            >
-                <img
-                    src={generatedImage}
-                    alt="Generated"
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <a
-                        href={generatedImage}
-                        download={`generated-${Date.now()}.png`}
-                        className="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+            </form>
+
+            {/* Image Display Area */}
+            <div className="flex-1 flex items-center justify-center bg-black/20 rounded-2xl border border-white/5 overflow-hidden relative min-h-[400px]">
+                {isLoading ? (
+                    <div className="text-center">
+                        <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
+                        <p className="text-purple-300 animate-pulse">Dreaming up your image...</p>
+                    </div>
+                ) : generatedImage ? (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5 }}
+                        className="relative group w-full h-full flex items-center justify-center"
                     >
-                        <Download size={20} />
-                        Download
-                    </a>
-                </div>
-            </motion.div>
-        ) : (
-            <div className="text-center text-gray-600">
-                <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                <p>Your masterpiece will appear here</p>
+                        <img
+                            src={generatedImage}
+                            alt="Generated"
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                        />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <a
+                                href={generatedImage}
+                                download={`generated-${Date.now()}.png`}
+                                className="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+                            >
+                                <Download size={20} />
+                                Download
+                            </a>
+                        </div>
+                    </motion.div>
+                ) : (
+                    <div className="text-center text-gray-600">
+                        <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                        <p>Your masterpiece will appear here</p>
+                    </div>
+                )}
             </div>
-        )}
-    </div>
-    </div >
-  );
+        </div >
+    );
 };
 
 export default ImageGenerator;

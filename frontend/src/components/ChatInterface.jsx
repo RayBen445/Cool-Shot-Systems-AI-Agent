@@ -32,7 +32,7 @@ const ChatInterface = () => {
             // In a real app, you might want to send the whole history or manage it better
             const history = messages.map(m => ({ role: m.role, content: m.content }));
 
-            const response = await fetch('http://localhost:8000/chat', {
+            const response = await fetch('https://professorceo-coolshot-ai-backend.hf.space/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: userMessage, history: history }),
@@ -65,8 +65,8 @@ const ChatInterface = () => {
                         </div>
                         <div
                             className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user'
-                                    ? 'bg-blue-600/20 border border-blue-500/30 text-blue-100 rounded-tr-none'
-                                    : 'bg-purple-600/20 border border-purple-500/30 text-purple-100 rounded-tl-none'
+                                ? 'bg-blue-600/20 border border-blue-500/30 text-blue-100 rounded-tr-none'
+                                : 'bg-purple-600/20 border border-purple-500/30 text-purple-100 rounded-tl-none'
                                 }`}
                         >
                             <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
