@@ -42,3 +42,9 @@ venv.bak/
 *.local
 .env.local
 .env.*.local
+
+# Generated images
+*.png
+!frontend/public/**/*.png
+output.png
+temp_generated.png
