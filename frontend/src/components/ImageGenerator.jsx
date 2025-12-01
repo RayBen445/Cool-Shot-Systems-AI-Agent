@@ -74,7 +74,7 @@ const ImageGenerator = () => {
             </form>
 
             {/* Image Display Area */}
-            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-black/30 to-black/20 rounded-3xl border border-white/10 overflow-hidden relative min-h-[450px] shadow-inner backdrop-blur-sm">
+            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-black/30 to-black/20 rounded-3xl border border-white/10 overflow-hidden relative min-h-[600px] shadow-inner backdrop-blur-sm">
                 {isLoading ? (
                     <motion.div 
                         initial={{ opacity: 0, scale: 0.9 }}
@@ -93,12 +93,13 @@ const ImageGenerator = () => {
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.6, ease: "easeOut" }}
-                        className="relative group w-full h-full flex items-center justify-center p-4"
+                        className="relative group w-full h-full flex items-center justify-center p-6"
                     >
                         <img
                             src={generatedImage}
                             alt="Generated artwork"
-                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl ring-2 ring-white/20"
+                            className="w-full h-full object-contain rounded-2xl shadow-2xl ring-2 ring-white/20"
+                            style={{ maxHeight: '550px', minHeight: '400px' }}
                         />
                         <motion.div 
                             initial={{ opacity: 0 }}
