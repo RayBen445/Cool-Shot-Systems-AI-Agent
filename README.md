@@ -1,3 +1,12 @@
+---
+title: Coolshot Ai Backend
+emoji: 🚀
+colorFrom: purple
+colorTo: blue
+sdk: docker
+pinned: false
+---
+
 # Cool-Shot-Systems-AI-Agent
 
 A premium **Local AI Assistant** that runs entirely on your machine, featuring a modern, animated UI.
