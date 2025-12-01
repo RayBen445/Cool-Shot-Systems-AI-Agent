@@ -15,7 +15,8 @@ const ImageGenerator = () => {
         setGeneratedImage(null);
 
         try {
-            const response = await fetch('http://localhost:8000/generate-image', {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const response = await fetch(`${apiUrl}/generate-image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: prompt }),
@@ -58,8 +59,7 @@ const ImageGenerator = () => {
                     {isLoading ? <Loader2 className="animate-spin" /> : <Wand2 />}
                     Generate
                 </button>
-            </button>
-        </form>
+            </form>
 
       {/* Image Display Area */ }
     <div className="flex-1 flex items-center justify-center bg-black/20 rounded-2xl border border-white/5 overflow-hidden relative min-h-[400px]">

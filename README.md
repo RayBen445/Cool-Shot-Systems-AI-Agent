@@ -34,15 +34,43 @@ A premium **Local AI Assistant** that runs entirely on your machine, featuring a
 
     ```bash
     # Backend
-    cd local_ai_assistant
     pip install -r requirements.txt
     python api.py
 
-    # Frontend
+    # Frontend (in a new terminal)
     cd frontend
     npm install
     npm run dev
     ```
+
+## 🌐 Deploy Frontend on Vercel
+
+You can deploy the frontend UI on Vercel. Note that the AI models require GPU resources and must be hosted separately (e.g., on a GPU server, Hugging Face Spaces, or cloud VM).
+
+### Steps:
+
+1. **Deploy the backend** on a GPU-enabled server:
+   - Use services like [Hugging Face Spaces](https://huggingface.co/spaces), [RunPod](https://runpod.io), [AWS EC2 with GPU](https://aws.amazon.com/ec2/instance-types/g4/), or [Google Cloud GPU VMs](https://cloud.google.com/gpu)
+   - Run `pip install -r requirements.txt && python api.py`
+   - Note your backend URL (e.g., `https://your-backend.example.com`)
+
+2. **Deploy the frontend on Vercel**:
+   - Push this repository to your GitHub account
+   - Go to [Vercel](https://vercel.com) and import your repository
+   - Set the **Root Directory** to `frontend`
+   - Add the environment variable:
+     - `VITE_API_URL` = `https://your-backend-url.com`
+   - Click **Deploy**
+
+### Local Development with Remote Backend:
+
+```bash
+cd frontend
+cp .env.example .env
+# Edit .env and set VITE_API_URL to your backend URL
+npm install
+npm run dev
+```
 
 ## 🏗️ Tech Stack
 
