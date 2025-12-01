@@ -140,6 +140,21 @@ Your backend (Python FastAPI) can be deployed to various platforms:
 
 ## 🔍 Troubleshooting
 
+### Issue: "404 Not Found" on deployment
+- **Solution 1**: Verify the Root Directory is set to `frontend` in Vercel project settings
+  - Go to Project Settings → General → Root Directory
+  - It MUST be set to `frontend`, not left empty
+- **Solution 2**: Check that the build completed successfully in deployment logs
+  - Go to Deployments tab and check the latest deployment logs
+  - Look for "Build Completed" message
+- **Solution 3**: Ensure the Output Directory is `dist`
+  - Go to Project Settings → General
+  - Output Directory should be `dist` (Vercel auto-detects this for Vite)
+- **Solution 4**: Redeploy the project
+  - Go to Deployments tab
+  - Click the three dots on the latest deployment
+  - Select "Redeploy"
+
 ### Issue: "Failed to connect to backend"
 - **Solution**: Verify your `VITE_API_URL` is correct and the backend is running
 - Check browser console for CORS errors

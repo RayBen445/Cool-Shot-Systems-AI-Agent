@@ -54,6 +54,12 @@ After deployment, test your app:
 
 ## 🆘 Common Issues
 
+### "404 Not Found" error
+- **Most Common Cause**: Root Directory not set to `frontend`
+- **Fix**: Go to Project Settings → General → Root Directory and set it to `frontend`
+- **Then**: Redeploy from the Deployments tab
+- See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for detailed steps
+
 ### "Module not found" or build fails
 - Make sure Root Directory is set to `frontend`
 - Check that all dependencies are installed
