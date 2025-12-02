@@ -29,40 +29,50 @@ class ChatEngine:
         )
 
     def generate_response(self, user_input, history=[]):
-        # System Prompt to define persona
+        # ... (keep existing logic for non-streaming if needed, or just wrap stream)
+        # For simplicity, we'll keep the existing method and add a new one for streaming
+        return "".join(self.generate_stream(user_input, history))
+
+    def generate_stream(self, user_input, history=[]):
+        from transformers import TextIteratorStreamer
+        from threading import Thread
+
+        # System Prompt
         system_prompt_content = "You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable."
         
-        # Check for search intent (simple keyword check for now)
-        # In a real app, we might use an LLM to decide if search is needed
+        # Search Intent Check (Simplified for stream)
         search_keywords = ["search", "find", "latest", "current", "news", "price of", "who is", "what is"]
         if any(keyword in user_input.lower() for keyword in search_keywords) and len(user_input.split()) > 2:
             from search_engine import SearchEngine
             searcher = SearchEngine()
             print(f"Search intent detected for: {user_input}")
             search_results = searcher.search(user_input)
-            
-            # Inject search results into context
             system_prompt_content += f"\n\nCONTEXT FROM WEB SEARCH:\n{search_results}\n\nINSTRUCTION: Use the above context to answer the user's question. Cite the sources if possible."
 
-        system_prompt = {
-            "role": "system",
-            "content": system_prompt_content
-        }
-        
-        # Format the conversation for Phi-3
-        # Ensure system prompt is first
+        system_prompt = {"role": "system", "content": system_prompt_content}
         messages = [system_prompt] + history + [{"role": "user", "content": user_input}]
         
-        generation_args = {
-            "max_new_tokens": 500,
-            "return_full_text": False,
-            "temperature": 0.7,
-            "do_sample": True,
-        }
-
-        output = self.pipe(messages, **generation_args)
-        response = output[0]['generated_text']
-        return response
+        # Tokenize
+        model_inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.device)
+        
+        # Streamer
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        
+        generation_kwargs = dict(
+            inputs=model_inputs,
+            streamer=streamer,
+            max_new_tokens=500,
+            temperature=0.7,
+            do_sample=True,
+        )
+        
+        # Run generation in a separate thread
+        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread.start()
+        
+        # Yield tokens
+        for new_text in streamer:
+            yield new_text
 
 if __name__ == "__main__":
     # Simple test

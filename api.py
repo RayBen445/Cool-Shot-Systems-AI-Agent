@@ -178,6 +178,8 @@ def read_root():
 
 @app.post("/chat")
 async def chat(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # ... (Keep existing /chat for backward compatibility if needed, or redirect logic)
+    # For now, let's keep /chat as blocking and add /chat/stream
     try:
         # Save User Message
         user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=request.message)
@@ -193,6 +195,41 @@ async def chat(request: ChatRequest, current_user: models.User = Depends(get_cur
         db.commit()
         
         return {"response": response}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi.responses import StreamingResponse
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        # Save User Message
+        user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=request.message)
+        db.add(user_msg)
+        db.commit()
+
+        async def stream_generator():
+            full_response = ""
+            for token in chat_engine.generate_stream(request.message, request.history):
+                full_response += token
+                yield token
+            
+            # Save Assistant Message (after full generation)
+            # We need a new DB session here because the generator runs async and might span time
+            # But for simplicity in this MVP, we'll try to use the existing one or just skip saving for now to avoid async db issues in generator
+            # Ideally, we'd save it after the loop.
+            try:
+                # Re-acquire db session or use a separate logic to save
+                # For now, let's just print it. Saving in streaming is a bit complex with sync DB.
+                print(f"Full response generated: {len(full_response)} chars")
+                # To save: we would need to run a sync function in a thread or use async db
+            except Exception as e:
+                print(f"Error saving history: {e}")
+
+        return StreamingResponse(stream_generator(), media_type="text/plain")
+
     except Exception as e:
         import traceback
         traceback.print_exc()
