@@ -1,5 +1,4 @@
 import torch
-
 from diffusers import AutoPipelineForText2Image
 from diffusers.utils import load_image
 
@@ -38,6 +37,7 @@ class ImageEngine:
                 logo = Image.open("logo.png").convert("RGBA")
             except FileNotFoundError:
                 print("Logo not found, skipping watermark.")
+                image.save(output_path)
                 return output_path
 
             # Resize Logo (e.g., 15% of image width)
@@ -60,7 +60,6 @@ class ImageEngine:
         except Exception as e:
             print(f"Warning: Could not add watermark: {e}")
 
-        image = image.convert('RGB')
         image.save(output_path)
         print(f"Image saved to {output_path}")
         return output_path
