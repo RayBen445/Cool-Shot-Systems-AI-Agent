@@ -1,0 +1,15 @@
+{
+    "redirects": [
+        {
+            "source": "/favicon.ico",
+            "destination": "/vite.svg",
+            "permanent": false
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}

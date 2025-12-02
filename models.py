@@ -13,7 +13,7 @@ class User(Base):
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False)
 
-    is_admin = Column(Boolean, default=False)
+
 
 class Conversation(Base):
     __tablename__ = "conversations"

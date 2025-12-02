@@ -22,6 +22,7 @@ from database import SessionLocal, engine
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+# Force git update
 
 # Security Config
 SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use env var
@@ -40,10 +41,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
+
+from fastapi import UploadFile, File
+import shutil
+from rag_engine import RAGEngine
+
 # Initialize engines
 print("Initializing AI Engines...")
 chat_engine = ChatEngine()
 image_engine = ImageEngine()
+rag_engine = RAGEngine()
 print("AI Engines Ready!")
 
 # Dependency
@@ -56,9 +71,13 @@ def get_db():
 
 # Auth Helpers
 def verify_password(plain_password, hashed_password):
+    if len(plain_password) > 72:
+        plain_password = plain_password[:72]
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -240,11 +259,35 @@ async def chat(request: ChatRequest, current_user: models.User = Depends(get_cur
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-from fastapi.responses import StreamingResponse
+# RAG Endpoints
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        # Save file locally
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, file.filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Ingest into RAG
+        rag_engine.ingest_file(file_path)
+        
+        return {"filename": file.filename, "status": "ingested"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
+        # Check for RAG context
+        context = ""
+        rag_docs = rag_engine.search(request.message)
+        if rag_docs:
+            context = "\n\nRelevant Context:\n" + "\n".join(rag_docs) + "\n\n"
+            print(f"Found {len(rag_docs)} relevant documents.")
+
         # Save User Message
         user_msg = models.ChatMessage(
             user_id=current_user.id, 
@@ -264,17 +307,13 @@ async def chat_stream(request: ChatRequest, current_user: models.User = Depends(
 
         async def stream_generator():
             full_response = ""
-            for token in chat_engine.generate_stream(request.message, request.history, request.language):
+            # Prepend context to the message sent to AI (but not saved in DB as user message)
+            augmented_message = context + request.message if context else request.message
+            
+            for token in chat_engine.generate_stream(augmented_message, request.history, request.language):
                 full_response += token
                 yield token
             
-            # Save Assistant Message (after full generation)
-            # Note: In a real async app, we'd need careful DB handling here.
-            # For this MVP, we are skipping the async save to avoid complexity, 
-            # or we could use a separate sync call if we really needed it.
-            # Ideally, the frontend can send a "save_message" call after stream completes,
-            # OR we use an async DB driver.
-            # For now, we will just log it.
             print(f"Generated response for conv {request.conversation_id}")
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
