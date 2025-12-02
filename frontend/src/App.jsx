@@ -52,6 +52,14 @@ const NavBar = () => {
               Cool-Shot AI
             </h1>
             <p className="text-xs text-gray-400 font-medium">Powered by Cool Shot Systems</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Cool-Shot AI Logo" className="w-12 h-12 object-contain drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+            <div>
+              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 tracking-tight">
+                Cool-Shot AI
+              </h1>
+              <p className="text-xs text-gray-400 font-medium">Powered by Cool Shot Systems</p>
+            </div>
           </div>
         </Link>
       </motion.div>
