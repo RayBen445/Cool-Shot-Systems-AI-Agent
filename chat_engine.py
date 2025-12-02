@@ -30,9 +30,23 @@ class ChatEngine:
 
     def generate_response(self, user_input, history=[]):
         # System Prompt to define persona
+        system_prompt_content = "You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable."
+        
+        # Check for search intent (simple keyword check for now)
+        # In a real app, we might use an LLM to decide if search is needed
+        search_keywords = ["search", "find", "latest", "current", "news", "price of", "who is", "what is"]
+        if any(keyword in user_input.lower() for keyword in search_keywords) and len(user_input.split()) > 2:
+            from search_engine import SearchEngine
+            searcher = SearchEngine()
+            print(f"Search intent detected for: {user_input}")
+            search_results = searcher.search(user_input)
+            
+            # Inject search results into context
+            system_prompt_content += f"\n\nCONTEXT FROM WEB SEARCH:\n{search_results}\n\nINSTRUCTION: Use the above context to answer the user's question. Cite the sources if possible."
+
         system_prompt = {
             "role": "system",
-            "content": "You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable."
+            "content": system_prompt_content
         }
         
         # Format the conversation for Phi-3
