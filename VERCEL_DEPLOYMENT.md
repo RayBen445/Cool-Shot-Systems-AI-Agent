@@ -22,9 +22,11 @@ This guide will help you deploy the **Cool-Shot Systems AI Agent** frontend to V
 
 4. **Configure the project**
    - **Framework Preset**: Vite
-   - **Root Directory**: `frontend`
-   - **Build Command**: `npm run build` (should be auto-detected)
-   - **Output Directory**: `dist` (should be auto-detected)
+   - **Root Directory**: Leave empty (the root `vercel.json` configures the frontend subdirectory)
+   - **Build Command**: Will be auto-configured from `vercel.json`
+   - **Output Directory**: Will be auto-configured from `vercel.json`
+   
+   **Note**: The repository includes a root-level `vercel.json` that automatically configures Vercel to build from the `frontend/` subdirectory. You don't need to manually set the root directory.
 
 5. **Set Environment Variables**
    - Click "Environment Variables"
@@ -141,15 +143,16 @@ Your backend (Python FastAPI) can be deployed to various platforms:
 ## 🔍 Troubleshooting
 
 ### Issue: "404 Not Found" on deployment
-- **Solution 1**: Verify the Root Directory is set to `frontend` in Vercel project settings
-  - Go to Project Settings → General → Root Directory
-  - It MUST be set to `frontend`, not left empty
+- **Solution 1**: Verify the root `vercel.json` file exists in the repository
+  - The root-level `vercel.json` configures Vercel to build from the `frontend/` subdirectory
+  - Ensure this file is committed to your repository
 - **Solution 2**: Check that the build completed successfully in deployment logs
   - Go to Deployments tab and check the latest deployment logs
   - Look for "Build Completed" message
-- **Solution 3**: Ensure the Output Directory is `dist`
-  - Go to Project Settings → General
-  - Output Directory should be `dist` (Vercel auto-detects this for Vite)
+- **Solution 3**: Leave Root Directory empty in Vercel project settings
+  - Go to Project Settings → General → Root Directory
+  - It should be left empty (not set to `frontend`)
+  - The `vercel.json` handles the directory configuration
 - **Solution 4**: Redeploy the project
   - Go to Deployments tab
   - Click the three dots on the latest deployment
