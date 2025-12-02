@@ -1,5 +1,5 @@
 ---
-title: Coolshot Ai Backend
+title: Coolshot AI Backend
 emoji: 🚀
 colorFrom: purple
 colorTo: blue
@@ -9,21 +9,18 @@ pinned: false
 
 # Cool-Shot-Systems-AI-Agent
 
-A premium **Local AI Assistant** that runs entirely on your machine, featuring a modern, animated UI.
-
-![UI Preview](https://via.placeholder.com/800x450?text=Local+AI+Assistant+Preview)
+A powerful **AI Backend API** that provides intelligent chat and image generation capabilities.
 
 ## 🚀 Features
 
-* **💬 Intelligent Chat**: Powered by Microsoft's **Phi-3 Mini**, capable of reasoning and conversation.
-* **🎨 Image Generation**: Create stunning visuals in seconds using **SDXL Turbo**.
-* **✨ Modern UI**: Built with **React**, **Tailwind CSS**, and **Framer Motion** for a smooth, glassmorphism experience.
-* **🔒 100% Local**: No data leaves your computer. No API keys required.
+* **💬 Intelligent Chat API**: Powered by Microsoft's **Phi-3 Mini**, capable of reasoning and conversation.
+* **🎨 Image Generation API**: Create stunning visuals in seconds using **SDXL Turbo**.
+* **⚡ FastAPI Backend**: High-performance REST API with automatic documentation.
+* **🔒 Secure**: JWT authentication, user management, and prompt history.
 
 ## 🛠️ Prerequisites
 
 * **Python 3.10+**
-* **Node.js 18+**
 * **Git**
 * *(Recommended)* NVIDIA GPU with 8GB+ VRAM for faster generation.
 
@@ -36,53 +33,73 @@ A premium **Local AI Assistant** that runs entirely on your machine, featuring a
     cd Cool-Shot-Systems-AI-Agent
     ```
 
-2. **Run the One-Click Installer**:
-    Double-click `start_app.bat` on Windows.
-
-    *Or run manually:*
+2. **Install dependencies**:
 
     ```bash
-    # Backend
-    cd local_ai_assistant
     pip install -r requirements.txt
-    python api.py
-
-    # Frontend
-    cd frontend
-    npm install
-    npm run dev
     ```
+
+3. **Run the API server**:
+
+    ```bash
+    python api.py
+    ```
+
+4. **Access the API**:
+   - API Base URL: `http://localhost:7860`
+   - Interactive API Docs: `http://localhost:7860/docs`
+   - Alternative Docs: `http://localhost:7860/redoc`
 
 ## 🏗️ Tech Stack
 
 * **Backend**: Python, FastAPI, PyTorch, Transformers, Diffusers
-* **Frontend**: React, Vite, Tailwind CSS, Framer Motion, Lucide React
+* **AI Models**: Microsoft Phi-3 Mini, SDXL Turbo
+* **Database**: SQLite with SQLAlchemy ORM
+* **Security**: JWT tokens, bcrypt password hashing
 
 ## 🌐 Deployment
 
-### Deploy to Vercel
+This backend API can be deployed to various platforms:
 
-The frontend can be easily deployed to Vercel for free! See the detailed deployment guide:
+### Deploy to Hugging Face Spaces (Recommended)
 
-📖 **[Vercel Deployment Guide](VERCEL_DEPLOYMENT.md)**
+1. Create a new Space at [huggingface.co/spaces](https://huggingface.co/spaces)
+2. Select "Docker" as the SDK
+3. Push this repository to your Space
+4. The `Dockerfile` is already configured for deployment
 
-Quick steps:
-1. Fork/clone this repository
-2. Sign up at [Vercel](https://vercel.com)
-3. Import your repository
-4. Set root directory to `frontend`
-5. Add environment variable: `VITE_API_URL` with your backend URL
-6. Deploy!
+### Deploy to Railway
 
-### Backend Deployment
+1. Connect your GitHub repository to [Railway](https://railway.app)
+2. Railway will auto-detect the Dockerfile
+3. Set environment variables if needed
+4. Deploy!
 
-The backend can be deployed to:
-- **Hugging Face Spaces** (current deployment)
-- **Railway**
-- **Render**
-- **Google Cloud Run / AWS / Azure**
+### Deploy to Render
 
-See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for detailed backend deployment options.
+1. Create a new Web Service at [Render](https://render.com)
+2. Connect your repository
+3. Use Docker deployment
+4. Set port to `7860`
+
+### Deploy to Other Platforms
+
+The included `Dockerfile` allows deployment to:
+- **Google Cloud Run**
+- **AWS ECS/Fargate**
+- **Azure Container Instances**
+- Any Docker-compatible hosting platform
+
+## 📚 API Endpoints
+
+- `POST /register` - Create a new user account
+- `POST /token` - Login and get JWT token
+- `POST /chat` - Send chat messages to the AI
+- `POST /image/generate` - Generate images from text prompts
+- `GET /prompts` - Get user's prompt history
+- `GET /user/stats` - Get user statistics
+
+See `/docs` endpoint for full interactive API documentation.
 
 ## 📄 License
 
