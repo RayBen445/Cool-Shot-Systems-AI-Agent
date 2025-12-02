@@ -22,6 +22,7 @@ from database import SessionLocal, engine
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+# Force git update
 
 # Security Config
 SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use env var
