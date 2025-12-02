@@ -1,4 +1,5 @@
 import torch
+
 from diffusers import AutoPipelineForText2Image
 from diffusers.utils import load_image
 
@@ -28,56 +29,34 @@ class ImageEngine:
         # SDXL Turbo needs only 1-4 steps
         image = self.pipe(prompt=prompt, num_inference_steps=1, guidance_scale=0.0).images[0]
         
-        # Add Branding Watermark
+        # Add Branding Watermark (Logo)
         try:
-            from PIL import ImageDraw, ImageFont
-            draw = ImageDraw.Draw(image)
-            
-            # Text to draw
-            text = "Cool-Shot Systems"
-            
-            # Try to load a font, fallback to default if not found
-            try:
-                # Try to load a standard font
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-            except:
-                font = ImageFont.load_default()
-            
-            # Calculate text size and position
-            try:
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-            except:
-                text_width = 150
-                text_height = 20
-
-            width, height = image.size
-            padding = 10
-            text_x = width - text_width - padding
-            text_y = height - text_height - padding
-            
-            # Draw semi-transparent background
-            # Create a separate image for the alpha layer
             from PIL import Image
-            overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-            overlay_draw = ImageDraw.Draw(overlay)
             
-            # Draw a black rectangle with 50% opacity behind the text
-            rect_x0 = text_x - 5
-            rect_y0 = text_y - 5
-            rect_x1 = text_x + text_width + 5
-            rect_y1 = text_y + text_height + 5
-            overlay_draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=(0, 0, 0, 128))
+            # Load Logo
+            try:
+                logo = Image.open("logo.png").convert("RGBA")
+            except FileNotFoundError:
+                print("Logo not found, skipping watermark.")
+                return output_path
+
+            # Resize Logo (e.g., 15% of image width)
+            target_width = int(image.width * 0.15)
+            aspect_ratio = logo.height / logo.width
+            target_height = int(target_width * aspect_ratio)
+            logo = logo.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+            # Position: Bottom Right with padding
+            padding = 20
+            x = image.width - target_width - padding
+            y = image.height - target_height - padding
             
-            # Composite the overlay
-            image = Image.alpha_composite(image.convert('RGBA'), overlay)
-            draw = ImageDraw.Draw(image) # Re-create draw object for the new image
+            # Composite
+            image = image.convert("RGBA")
+            image.alpha_composite(logo, (x, y))
+            image = image.convert("RGB")
             
-            # Draw text in white
-            draw.text((text_x, text_y), text, font=font, fill="white")
-            
-            print("Branding added.")
+            print("Logo watermark added.")
         except Exception as e:
             print(f"Warning: Could not add watermark: {e}")
 
