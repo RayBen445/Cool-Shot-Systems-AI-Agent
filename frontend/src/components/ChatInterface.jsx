@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Download, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 
 const ChatInterface = () => {
     const [messages, setMessages] = useState([
@@ -9,7 +9,19 @@ const ChatInterface = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [thinkingTime, setThinkingTime] = useState(0);
+    const [isListening, setIsListening] = useState(false);
+    const [autoSpeak, setAutoSpeak] = useState(false);
     const messagesEndRef = useRef(null);
+
+    // Speech Recognition Setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+    if (recognition) {
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+    }
 
     useEffect(() => {
         let interval;
@@ -31,6 +43,42 @@ const ChatInterface = () => {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    const speakResponse = (text) => {
+        if (!autoSpeak) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.speak(utterance);
+    };
+
+    const toggleListening = () => {
+        if (!recognition) {
+            alert("Voice input is not supported in this browser.");
+            return;
+        }
+
+        if (isListening) {
+            recognition.stop();
+            setIsListening(false);
+        } else {
+            recognition.start();
+            setIsListening(true);
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                setInput(transcript);
+                setIsListening(false);
+            };
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                setIsListening(false);
+            };
+            recognition.onend = () => {
+                setIsListening(false);
+            };
+        }
+    };
 
     const sendMessage = async (e) => {
         e.preventDefault();
@@ -63,8 +111,10 @@ const ChatInterface = () => {
                         content: `Here is your image for: "${prompt}"`,
                         image: `data:image/png;base64,${data.image_base64}`
                     }]);
+                    speakResponse(`Here is your image for: ${prompt}`);
                 } else {
                     setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't generate that image." }]);
+                    speakResponse("Sorry, I couldn't generate that image.");
                 }
             } else {
                 // Normal chat message
@@ -80,6 +130,7 @@ const ChatInterface = () => {
 
                 const data = await response.json();
                 setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+                speakResponse(data.response);
             }
         } catch (error) {
             console.error("Error:", error);
@@ -100,6 +151,17 @@ const ChatInterface = () => {
 
     return (
         <div className="flex flex-col h-full max-w-5xl mx-auto bg-gradient-to-br from-white/10 via-purple-500/10 to-pink-500/10 backdrop-blur-xl rounded-3xl shadow-2xl shadow-purple-500/20 overflow-hidden border border-white/30">
+            {/* Header Controls */}
+            <div className="flex justify-end p-4 border-b border-white/10">
+                <button
+                    onClick={() => setAutoSpeak(!autoSpeak)}
+                    className={`p-2 rounded-full transition-all ${autoSpeak ? 'bg-purple-500 text-white' : 'bg-white/10 text-gray-400 hover:bg-white/20'}`}
+                    title={autoSpeak ? "Mute Voice" : "Enable Voice"}
+                >
+                    {autoSpeak ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                </button>
+            </div>
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {messages.map((msg, index) => (
@@ -113,8 +175,8 @@ const ChatInterface = () => {
                         <motion.div
                             whileHover={{ scale: 1.1, rotate: 5 }}
                             className={`p-3 rounded-2xl shadow-lg ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-cyan-600 via-blue-600 to-blue-500 shadow-cyan-500/50'
-                                    : 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-500 shadow-purple-500/50'
+                                ? 'bg-gradient-to-br from-cyan-600 via-blue-600 to-blue-500 shadow-cyan-500/50'
+                                : 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-500 shadow-purple-500/50'
                                 }`}
                         >
                             {msg.role === 'user' ? <User size={22} /> : <Bot size={22} />}
@@ -122,8 +184,8 @@ const ChatInterface = () => {
                         <motion.div
                             whileHover={{ scale: 1.02 }}
                             className={`max-w-[75%] p-5 rounded-2xl shadow-xl ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-cyan-600/40 via-blue-600/30 to-blue-500/20 border border-cyan-400/50 text-cyan-50 rounded-tr-sm backdrop-blur-sm shadow-cyan-500/30'
-                                    : 'bg-gradient-to-br from-purple-600/40 via-violet-600/30 to-purple-500/20 border border-purple-400/50 text-purple-50 rounded-tl-sm backdrop-blur-sm shadow-purple-500/30'
+                                ? 'bg-gradient-to-br from-cyan-600/40 via-blue-600/30 to-blue-500/20 border border-cyan-400/50 text-cyan-50 rounded-tr-sm backdrop-blur-sm shadow-cyan-500/30'
+                                : 'bg-gradient-to-br from-purple-600/40 via-violet-600/30 to-purple-500/20 border border-purple-400/50 text-purple-50 rounded-tl-sm backdrop-blur-sm shadow-purple-500/30'
                                 }`}
                         >
                             <p className="leading-relaxed whitespace-pre-wrap text-base">{msg.content}</p>
@@ -164,12 +226,21 @@ const ChatInterface = () => {
 
             {/* Input Area */}
             <div className="p-6 bg-gradient-to-r from-black/40 via-purple-900/30 to-black/40 border-t border-white/20 backdrop-blur-sm">
-                <form onSubmit={sendMessage} className="flex gap-4">
+                <form onSubmit={sendMessage} className="flex gap-4 items-center">
+                    <button
+                        type="button"
+                        onClick={toggleListening}
+                        className={`p-4 rounded-2xl transition-all duration-300 ${isListening ? 'bg-red-500 animate-pulse shadow-red-500/50' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                        title="Speak"
+                    >
+                        {isListening ? <MicOff size={22} /> : <Mic size={22} />}
+                    </button>
+
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Type your message..."
+                        placeholder={isListening ? "Listening..." : "Type your message..."}
                         className="flex-1 bg-white/10 border border-white/30 rounded-2xl px-6 py-4 text-white placeholder-cyan-200/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 focus:border-cyan-400/60 transition-all backdrop-blur-sm shadow-inner text-base"
                     />
                     <motion.button
