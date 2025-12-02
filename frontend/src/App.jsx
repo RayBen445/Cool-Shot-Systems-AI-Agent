@@ -20,7 +20,7 @@ function App() {
 
         {/* Header */}
         <header className="flex items-center justify-between mb-8">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-3"
@@ -33,34 +33,32 @@ function App() {
               <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 tracking-tight">
                 Cool-Shot AI
               </h1>
-              <p className="text-xs text-gray-400 font-medium">Powered by Advanced AI</p>
+              <p className="text-xs text-gray-400 font-medium">Powered by Cool Shot Systems</p>
             </div>
           </motion.div>
 
           {/* Navigation */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex bg-white/5 backdrop-blur-xl rounded-full p-1.5 border border-white/10 shadow-2xl"
           >
             <button
               onClick={() => setActiveTab('chat')}
-              className={`flex items-center gap-2 px-8 py-3 rounded-full transition-all duration-300 font-medium ${
-                activeTab === 'chat' 
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/50 scale-105' 
+              className={`flex items-center gap-2 px-8 py-3 rounded-full transition-all duration-300 font-medium ${activeTab === 'chat'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/50 scale-105'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+                }`}
             >
               <MessageSquare size={18} />
               Chat
             </button>
             <button
               onClick={() => setActiveTab('image')}
-              className={`flex items-center gap-2 px-8 py-3 rounded-full transition-all duration-300 font-medium ${
-                activeTab === 'image' 
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+              className={`flex items-center gap-2 px-8 py-3 rounded-full transition-all duration-300 font-medium ${activeTab === 'image'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+                }`}
             >
               <ImageIcon size={18} />
               Image
