@@ -9,3 +9,7 @@ sentencepiece
 fastapi
 uvicorn
 Pillow
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
