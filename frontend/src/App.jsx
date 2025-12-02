@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Image as ImageIcon, Bot, User, LogOut, Shield } from 'lucide-react';
+import { MessageSquare, Image as ImageIcon, User, LogOut, Shield } from 'lucide-react';
 import ChatInterface from './components/ChatInterface';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -44,14 +44,6 @@ const NavBar = () => {
         className="flex items-center gap-3"
       >
         <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 tracking-tight">
-              Cool-Shot AI
-            </h1>
-            <p className="text-xs text-gray-400 font-medium">Powered by Cool Shot Systems</p>
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Cool-Shot AI Logo" className="w-12 h-12 object-contain drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
             <div>
