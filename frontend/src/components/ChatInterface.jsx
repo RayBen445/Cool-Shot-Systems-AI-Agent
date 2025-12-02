@@ -117,9 +117,10 @@ const ChatInterface = () => {
                     speakResponse("Sorry, I couldn't generate that image.");
                 }
             } else {
-                // Normal chat message
+                // Normal chat message (Streaming)
                 const history = messages.map(m => ({ role: m.role, content: m.content }));
-                const response = await fetch(`${apiUrl}/chat`, {
+
+                const response = await fetch(`${apiUrl}/chat/stream`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -128,9 +129,36 @@ const ChatInterface = () => {
                     body: JSON.stringify({ message: userMessage, history: history }),
                 });
 
-                const data = await response.json();
-                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-                speakResponse(data.response);
+                if (!response.ok) throw new Error(response.statusText);
+
+                // Create a placeholder message for the assistant
+                setMessages(prev => [...prev, { role: 'assistant', content: "" }]);
+                setIsLoading(false); // Stop loading spinner immediately as stream starts
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessage = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    assistantMessage += chunk;
+
+                    // Update the last message with the new chunk
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastMsg = newMessages[newMessages.length - 1];
+                        if (lastMsg.role === 'assistant') {
+                            lastMsg.content = assistantMessage;
+                        }
+                        return newMessages;
+                    });
+                }
+
+                // Speak the full response after streaming is done
+                speakResponse(assistantMessage);
             }
         } catch (error) {
             console.error("Error:", error);
