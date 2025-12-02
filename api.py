@@ -198,6 +198,34 @@ async def chat(request: ChatRequest, current_user: models.User = Depends(get_cur
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from fastapi.responses import StreamingResponse
+    
+    async def generate():
+        try:
+            # Save User Message
+            user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=request.message)
+            db.add(user_msg)
+            db.commit()
+            
+            full_response = ""
+            for chunk in chat_engine.generate_response_stream(request.message, request.history):
+                full_response += chunk
+                yield f"data: {chunk}\n\n"
+            
+            # Save Assistant Message
+            ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=full_response)
+            db.add(ai_msg)
+            db.commit()
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: [ERROR] {str(e)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 @app.post("/generate-image")
 async def generate_image(request: ImageRequest, current_user: models.User = Depends(get_current_user)):
     try:
