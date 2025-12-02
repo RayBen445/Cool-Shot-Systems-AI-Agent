@@ -43,35 +43,45 @@ class ImageEngine:
             except:
                 font = ImageFont.load_default()
             
-            # Calculate text position (bottom right)
-            # For default font, we can't easily get size, so we guess or just place it
-            # For truetype, we can use getbbox
-            
+            # Calculate text size and position
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except:
+                text_width = 150
+                text_height = 20
+
             width, height = image.size
-            text_x = width - 180
-            text_y = height - 30
+            padding = 10
+            text_x = width - text_width - padding
+            text_y = height - text_height - padding
             
-            # Draw semi-transparent background for text
-            # PIL doesn't support alpha text drawing directly on RGB images easily without converting
-            # So we'll just draw white text with a black outline for visibility
+            # Draw semi-transparent background
+            # Create a separate image for the alpha layer
+            from PIL import Image
+            overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
             
-            # Draw outline
-            outline_color = "black"
-            text_color = "white"
+            # Draw a black rectangle with 50% opacity behind the text
+            rect_x0 = text_x - 5
+            rect_y0 = text_y - 5
+            rect_x1 = text_x + text_width + 5
+            rect_y1 = text_y + text_height + 5
+            overlay_draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=(0, 0, 0, 128))
             
-            x, y = text_x, text_y
-            draw.text((x-1, y-1), text, font=font, fill=outline_color)
-            draw.text((x+1, y-1), text, font=font, fill=outline_color)
-            draw.text((x-1, y+1), text, font=font, fill=outline_color)
-            draw.text((x+1, y+1), text, font=font, fill=outline_color)
+            # Composite the overlay
+            image = Image.alpha_composite(image.convert('RGBA'), overlay)
+            draw = ImageDraw.Draw(image) # Re-create draw object for the new image
             
-            # Draw text
-            draw.text((x, y), text, font=font, fill=text_color)
+            # Draw text in white
+            draw.text((text_x, text_y), text, font=font, fill="white")
             
             print("Branding added.")
         except Exception as e:
             print(f"Warning: Could not add watermark: {e}")
 
+        image = image.convert('RGB')
         image.save(output_path)
         print(f"Image saved to {output_path}")
         return output_path
