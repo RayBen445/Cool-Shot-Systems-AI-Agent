@@ -12,10 +12,18 @@ export const AuthProvider = ({ children }) => {
       try {
         const savedUser = localStorage.getItem('user');
         if (savedUser) {
-          setUser(JSON.parse(savedUser));
+          const userData = JSON.parse(savedUser);
+          // Validate user data structure
+          if (userData && typeof userData === 'object' && userData.id && userData.email) {
+            setUser(userData);
+          } else {
+            // Invalid data, clear it
+            localStorage.removeItem('user');
+          }
         }
       } catch (error) {
         console.error('Error loading user from localStorage:', error);
+        localStorage.removeItem('user');
       } finally {
         setLoading(false);
       }
