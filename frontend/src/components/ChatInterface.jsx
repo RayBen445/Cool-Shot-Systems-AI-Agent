@@ -1,15 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Download, Mic, Volume2, Settings } from 'lucide-react';
 
 const ChatInterface = () => {
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: "Hello! I'm your Cool-Shot AI assistant (v2.0). How can I help you today?" }
+        { role: 'assistant', content: "Hello! I'm your Cool-Shot AI assistant (v3.0). How can I help you today?" }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [thinkingTime, setThinkingTime] = useState(0);
+    const [isRecording, setIsRecording] = useState(false);
+    const [useStreaming, setUseStreaming] = useState(true);
+    const [language, setLanguage] = useState('en');
+    const [showSettings, setShowSettings] = useState(false);
     const messagesEndRef = useRef(null);
+    const recognitionRef = useRef(null);
 
     useEffect(() => {
         let interval;
@@ -31,6 +36,56 @@ const ChatInterface = () => {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Voice Recognition
+    const startRecording = () => {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognitionRef.current = new SpeechRecognition();
+            recognitionRef.current.continuous = false;
+            recognitionRef.current.interimResults = false;
+            recognitionRef.current.lang = language === 'es' ? 'es-ES' : 'en-US';
+
+            recognitionRef.current.onstart = () => {
+                setIsRecording(true);
+            };
+
+            recognitionRef.current.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                setInput(transcript);
+            };
+
+            recognitionRef.current.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                setIsRecording(false);
+            };
+
+            recognitionRef.current.onend = () => {
+                setIsRecording(false);
+            };
+
+            recognitionRef.current.start();
+        } else {
+            alert('Speech recognition not supported in this browser');
+        }
+    };
+
+    const stopRecording = () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+        }
+    };
+
+    // Text to Speech
+    const speakText = (text) => {
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = language === 'es' ? 'es-ES' : 'en-US';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+    };
 
     const sendMessage = async (e) => {
         e.preventDefault();
@@ -69,17 +124,64 @@ const ChatInterface = () => {
             } else {
                 // Normal chat message
                 const history = messages.map(m => ({ role: m.role, content: m.content }));
-                const response = await fetch(`${apiUrl}/chat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({ message: userMessage, history: history }),
-                });
+                
+                if (useStreaming) {
+                    // Streaming response
+                    const response = await fetch(`${apiUrl}/chat/stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({ message: userMessage, history: history }),
+                    });
 
-                const data = await response.json();
-                setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let fullResponse = '';
+
+                    // Add empty assistant message to update incrementally
+                    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const text = line.slice(6);
+                                fullResponse += text;
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    newMessages[newMessages.length - 1].content = fullResponse;
+                                    return newMessages;
+                                });
+                            }
+                        }
+                    }
+
+                    // Enable TTS for final response
+                    if (fullResponse) {
+                        speakText(fullResponse);
+                    }
+                } else {
+                    // Non-streaming response
+                    const response = await fetch(`${apiUrl}/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({ message: userMessage, history: history }),
+                    });
+
+                    const data = await response.json();
+                    setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+                    speakText(data.response);
+                }
             }
         } catch (error) {
             console.error("Error:", error);
@@ -164,7 +266,57 @@ const ChatInterface = () => {
 
             {/* Input Area */}
             <div className="p-6 bg-gradient-to-r from-black/40 via-purple-900/30 to-black/40 border-t border-white/20 backdrop-blur-sm">
-                <form onSubmit={sendMessage} className="flex gap-4">
+                {/* Settings Panel */}
+                {showSettings && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-4 p-4 bg-white/10 rounded-xl border border-white/20"
+                    >
+                        <div className="flex gap-4 items-center">
+                            <label className="flex items-center gap-2 text-white">
+                                <input
+                                    type="checkbox"
+                                    checked={useStreaming}
+                                    onChange={(e) => setUseStreaming(e.target.checked)}
+                                    className="rounded"
+                                />
+                                Streaming
+                            </label>
+                            <label className="flex items-center gap-2 text-white">
+                                Language:
+                                <select
+                                    value={language}
+                                    onChange={(e) => setLanguage(e.target.value)}
+                                    className="bg-white/20 rounded px-2 py-1"
+                                >
+                                    <option value="en">English</option>
+                                    <option value="es">Español</option>
+                                </select>
+                            </label>
+                        </div>
+                    </motion.div>
+                )}
+
+                <form onSubmit={sendMessage} className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowSettings(!showSettings)}
+                        className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-2xl transition-all"
+                        title="Settings"
+                    >
+                        <Settings size={20} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={`${
+                            isRecording ? 'bg-red-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'
+                        } text-white p-4 rounded-2xl transition-all`}
+                        title="Voice Input"
+                    >
+                        <Mic size={20} />
+                    </button>
                     <input
                         type="text"
                         value={input}
