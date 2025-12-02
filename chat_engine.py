@@ -28,17 +28,17 @@ class ChatEngine:
             tokenizer=self.tokenizer,
         )
 
-    def generate_response(self, user_input, history=[]):
+    def generate_response(self, user_input, history=[], language="English"):
         # ... (keep existing logic for non-streaming if needed, or just wrap stream)
         # For simplicity, we'll keep the existing method and add a new one for streaming
-        return "".join(self.generate_stream(user_input, history))
+        return "".join(self.generate_stream(user_input, history, language))
 
-    def generate_stream(self, user_input, history=[]):
+    def generate_stream(self, user_input, history=[], language="English"):
         from transformers import TextIteratorStreamer
         from threading import Thread
 
         # System Prompt
-        system_prompt_content = "You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable."
+        system_prompt_content = f"You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable. Please reply in {language}."
         
         # Search Intent Check (Simplified for stream)
         search_keywords = ["search", "find", "latest", "current", "news", "price of", "who is", "what is"]

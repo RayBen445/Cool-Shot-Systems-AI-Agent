@@ -140,11 +140,47 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_users_me(current_user: schemas.User = Depends(get_current_user)):
     return current_user
 
-# Chat History Endpoint
-@app.get("/history", response_model=List[schemas.ChatMessage])
-async def get_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    messages = db.query(models.ChatMessage).filter(models.ChatMessage.user_id == current_user.id).order_by(models.ChatMessage.timestamp).all()
-    return messages
+# Conversation Endpoints
+@app.post("/conversations", response_model=schemas.Conversation)
+async def create_conversation(conversation: schemas.ConversationCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_conversation = models.Conversation(**conversation.dict(), user_id=current_user.id)
+    db.add(db_conversation)
+    db.commit()
+    db.refresh(db_conversation)
+    return db_conversation
+
+@app.get("/conversations", response_model=List[schemas.Conversation])
+async def get_conversations(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(models.Conversation).filter(models.Conversation.user_id == current_user.id).order_by(models.Conversation.updated_at.desc()).all()
+
+@app.get("/conversations/{conversation_id}/messages", response_model=List[schemas.ChatMessage])
+async def get_conversation_messages(conversation_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id, models.Conversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return db.query(models.ChatMessage).filter(models.ChatMessage.conversation_id == conversation_id).order_by(models.ChatMessage.timestamp).all()
+
+# Saved Prompt Endpoints
+@app.post("/prompts", response_model=schemas.SavedPrompt)
+async def create_prompt(prompt: schemas.SavedPromptCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_prompt = models.SavedPrompt(**prompt.dict(), user_id=current_user.id)
+    db.add(db_prompt)
+    db.commit()
+    db.refresh(db_prompt)
+    return db_prompt
+
+@app.get("/prompts", response_model=List[schemas.SavedPrompt])
+async def get_prompts(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(models.SavedPrompt).filter(models.SavedPrompt.user_id == current_user.id).order_by(models.SavedPrompt.created_at.desc()).all()
+
+@app.delete("/prompts/{prompt_id}")
+async def delete_prompt(prompt_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_prompt = db.query(models.SavedPrompt).filter(models.SavedPrompt.id == prompt_id, models.SavedPrompt.user_id == current_user.id).first()
+    if not db_prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    db.delete(db_prompt)
+    db.commit()
+    return {"status": "success"}
 
 # Admin Endpoints
 @app.get("/admin/users", response_model=List[schemas.UserActivity])
@@ -153,9 +189,11 @@ async def get_all_users(current_user: models.User = Depends(get_current_admin), 
     users = db.query(models.User).all()
     result = []
     for user in users:
-        count = db.query(func.count(models.ChatMessage.id)).filter(models.ChatMessage.user_id == user.id).scalar()
+        msg_count = db.query(func.count(models.ChatMessage.id)).filter(models.ChatMessage.user_id == user.id).scalar()
+        prompt_count = db.query(func.count(models.SavedPrompt.id)).filter(models.SavedPrompt.user_id == user.id).scalar()
         user_data = schemas.UserActivity.from_orm(user)
-        user_data.message_count = count
+        user_data.message_count = msg_count
+        user_data.prompt_count = prompt_count
         result.append(user_data)
     return result
 
@@ -168,6 +206,8 @@ async def get_all_activity(current_user: models.User = Depends(get_current_admin
 class ChatRequest(BaseModel):
     message: str
     history: list = []
+    language: str = "English"
+    conversation_id: Optional[int] = None
 
 class ImageRequest(BaseModel):
     prompt: str
@@ -206,27 +246,36 @@ from fastapi.responses import StreamingResponse
 async def chat_stream(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         # Save User Message
-        user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=request.message)
+        user_msg = models.ChatMessage(
+            user_id=current_user.id, 
+            conversation_id=request.conversation_id,
+            role="user", 
+            content=request.message
+        )
         db.add(user_msg)
         db.commit()
 
+        # Update conversation timestamp
+        if request.conversation_id:
+            conversation = db.query(models.Conversation).filter(models.Conversation.id == request.conversation_id).first()
+            if conversation:
+                conversation.updated_at = datetime.utcnow()
+                db.commit()
+
         async def stream_generator():
             full_response = ""
-            for token in chat_engine.generate_stream(request.message, request.history):
+            for token in chat_engine.generate_stream(request.message, request.history, request.language):
                 full_response += token
                 yield token
             
             # Save Assistant Message (after full generation)
-            # We need a new DB session here because the generator runs async and might span time
-            # But for simplicity in this MVP, we'll try to use the existing one or just skip saving for now to avoid async db issues in generator
-            # Ideally, we'd save it after the loop.
-            try:
-                # Re-acquire db session or use a separate logic to save
-                # For now, let's just print it. Saving in streaming is a bit complex with sync DB.
-                print(f"Full response generated: {len(full_response)} chars")
-                # To save: we would need to run a sync function in a thread or use async db
-            except Exception as e:
-                print(f"Error saving history: {e}")
+            # Note: In a real async app, we'd need careful DB handling here.
+            # For this MVP, we are skipping the async save to avoid complexity, 
+            # or we could use a separate sync call if we really needed it.
+            # Ideally, the frontend can send a "save_message" call after stream completes,
+            # OR we use an async DB driver.
+            # For now, we will just log it.
+            print(f"Generated response for conv {request.conversation_id}")
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
 

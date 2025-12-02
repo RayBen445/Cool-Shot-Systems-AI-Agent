@@ -24,9 +24,29 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+class UserActivity(User):
+    message_count: int
+    prompt_count: int
+
+class ConversationBase(BaseModel):
+    title: str
+
+class ConversationCreate(ConversationBase):
+    pass
+
+class Conversation(ConversationBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
 class ChatMessageBase(BaseModel):
     role: str
     content: str
+    conversation_id: Optional[int] = None
 
 class ChatMessageCreate(ChatMessageBase):
     pass
@@ -41,3 +61,20 @@ class ChatMessage(ChatMessageBase):
 
 class UserActivity(User):
     message_count: int
+    prompt_count: int
+
+class SavedPromptBase(BaseModel):
+    title: str
+    content: str
+    is_public: bool = False
+
+class SavedPromptCreate(SavedPromptBase):
+    pass
+
+class SavedPrompt(SavedPromptBase):
+    id: int
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
