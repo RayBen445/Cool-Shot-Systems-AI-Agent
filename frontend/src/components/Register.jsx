@@ -13,7 +13,7 @@ const Register = () => {
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login } = useAuth();
+    const { register } = useAuth();
     const navigate = useNavigate();
 
     const handleChange = (e) => {
@@ -25,33 +25,15 @@ const Register = () => {
         setError('');
         setIsLoading(true);
 
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
-
         try {
-            const response = await fetch(`${apiUrl}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
-            });
-
-            if (!response.ok) {
-                let errorMessage = 'Registration failed';
-                try {
-                    const data = await response.json();
-                    errorMessage = data.detail || errorMessage;
-                } catch (e) {
-                    // If JSON parsing fails, try to get text
-                    const text = await response.text();
-                    errorMessage = text || errorMessage;
-                }
-                throw new Error(errorMessage);
-            }
-
-            // Auto login after registration
-            await login(formData.email, formData.password);
+            await register(formData.full_name, formData.email, formData.password);
+            // Login is handled automatically by Firebase on registration success usually, 
+            // but our context register function returns the userCredential.
+            // We can just navigate.
             navigate('/');
         } catch (err) {
-            setError(err.message);
+            console.error(err);
+            setError(err.message.replace('Firebase: ', ''));
         } finally {
             setIsLoading(false);
         }

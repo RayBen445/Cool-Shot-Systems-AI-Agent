@@ -20,6 +20,7 @@ const Login = () => {
             await login(email, password);
             navigate('/');
         } catch (err) {
+            console.error(err);
             setError('Invalid email or password');
         } finally {
             setIsLoading(false);

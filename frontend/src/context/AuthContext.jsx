@@ -1,4 +1,12 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { auth } from '../firebase';
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    updateProfile
+} from 'firebase/auth';
 
 const AuthContext = createContext(null);
 
@@ -7,64 +15,41 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const checkLoggedIn = async () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                try {
-                    await fetchUser(token);
-                } catch (error) {
-                    console.error("Session expired", error);
-                    localStorage.removeItem('token');
-                }
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                // Get ID token for backend verification
+                const token = await currentUser.getIdToken();
+                localStorage.setItem('token', token);
+                setUser(currentUser);
+            } else {
+                localStorage.removeItem('token');
+                setUser(null);
             }
             setLoading(false);
-        };
-        checkLoggedIn();
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const fetchUser = async (token) => {
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
-        const response = await fetch(`${apiUrl}/users/me`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-        } else {
-            throw new Error('Failed to fetch user');
-        }
+    const login = (email, password) => {
+        return signInWithEmailAndPassword(auth, email, password);
     };
 
-    const login = async (email, password) => {
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://professorceo-coolshot-ai-backend.hf.space';
-        const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
-
-        const response = await fetch(`${apiUrl}/token`, {
-            method: 'POST',
-            body: formData,
+    const register = async (name, email, password) => {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, {
+            displayName: name
         });
-
-        if (!response.ok) {
-            throw new Error('Login failed');
-        }
-
-        const data = await response.json();
-        localStorage.setItem('token', data.access_token);
-        await fetchUser(data.access_token);
+        return userCredential;
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
-        setUser(null);
+        return signOut(auth);
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading }}>
-            {children}
+        <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+            {!loading && children}
         </AuthContext.Provider>
     );
 };

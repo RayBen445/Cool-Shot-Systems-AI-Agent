@@ -16,43 +16,31 @@ from chat_engine import ChatEngine
 from image_engine import ImageEngine
 import models
 import schemas
-from database import SessionLocal, engine
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
 
-# Create tables
-models.Base.metadata.create_all(bind=engine)
+# Initialize Firebase Admin
+if not firebase_admin._apps:
+    if os.path.exists("serviceAccountKey.json"):
+        cred = credentials.Certificate("serviceAccountKey.json")
+    else:
+        # Try getting from env var (for Hugging Face)
+        key_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
+        if key_json:
+            import json
+            cred_dict = json.loads(key_json)
+            cred = credentials.Certificate(cred_dict)
+        else:
+            print("Warning: No service account key found. Firebase features will fail.")
+            cred = None
+            
+    if cred:
+        firebase_admin.initialize_app(cred)
 
-app = FastAPI()
-# Force git update
-
-# Security Config
-SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use env var
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-from fastapi.responses import JSONResponse
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"},
-    )
-
-from fastapi import UploadFile, File
-import shutil
-from rag_engine import RAGEngine
+if firebase_admin._apps:
+    db = firestore.client()
+else:
+    db = None
 
 # Initialize engines
 print("Initializing AI Engines...")
@@ -61,165 +49,144 @@ image_engine = ImageEngine()
 rag_engine = RAGEngine()
 print("AI Engines Ready!")
 
-# Dependency
-def get_db():
-    db = SessionLocal()
+# Auth Dependency
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
-        yield db
-    finally:
-        db.close()
+        decoded_token = auth.verify_id_token(token)
+        uid = decoded_token['uid']
+        # Get user data from Firestore
+        user_doc = db.collection('users').document(uid).get()
+        if not user_doc.exists:
+            # Create user if not exists (first login)
+            user_data = {
+                "email": decoded_token.get('email'),
+                "full_name": decoded_token.get('name', 'User'),
+                "created_at": datetime.utcnow(),
+                "is_admin": False
+            }
+            db.collection('users').document(uid).set(user_data)
+            return {**user_data, "id": uid}
+        
+        return {**user_doc.to_dict(), "id": uid}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication credentials: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-# Auth Helpers
-def verify_password(plain_password, hashed_password):
-    if len(plain_password) > 72:
-        plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    if len(password) > 72:
-        password = password[:72]
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    user = db.query(models.User).filter(models.User.email == token_data.email).first()
-    if user is None:
-        raise credentials_exception
-    return user
-
-async def get_current_admin(current_user: models.User = Depends(get_current_user)):
-    if not current_user.is_admin:
+async def get_current_admin(current_user: dict = Depends(get_current_user)):
+    if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
 
 # Auth Endpoints
-@app.post("/register", response_model=schemas.User)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    
-    # Check if this is the Admin user
-    is_admin = False
-    if user.email == "oladoyeheritage445@gmail.com":
-        is_admin = True
-        
-    db_user = models.User(
-        email=user.email, 
-        hashed_password=hashed_password,
-        full_name=user.full_name,
-        company_name=user.company_name,
-        is_admin=is_admin
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+# Note: Registration and Login are handled by Firebase on the Frontend.
+# The backend only verifies the ID token via get_current_user.
 
-@app.post("/token", response_model=schemas.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/users/me", response_model=schemas.User)
-async def read_users_me(current_user: schemas.User = Depends(get_current_user)):
+@app.get("/users/me")
+async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 # Conversation Endpoints
-@app.post("/conversations", response_model=schemas.Conversation)
-async def create_conversation(conversation: schemas.ConversationCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_conversation = models.Conversation(**conversation.dict(), user_id=current_user.id)
-    db.add(db_conversation)
-    db.commit()
-    db.refresh(db_conversation)
-    return db_conversation
+@app.post("/conversations")
+async def create_conversation(conversation: schemas.ConversationCreate, current_user: dict = Depends(get_current_user)):
+    try:
+        new_conv_ref = db.collection('conversations').document()
+        conv_data = {
+            "id": new_conv_ref.id,
+            "user_id": current_user['id'],
+            "title": conversation.title,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        new_conv_ref.set(conv_data)
+        return conv_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/conversations", response_model=List[schemas.Conversation])
-async def get_conversations(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(models.Conversation).filter(models.Conversation.user_id == current_user.id).order_by(models.Conversation.updated_at.desc()).all()
+@app.get("/conversations")
+async def get_conversations(current_user: dict = Depends(get_current_user)):
+    try:
+        docs = db.collection('conversations').where('user_id', '==', current_user['id']).order_by('updated_at', direction=firestore.Query.DESCENDING).stream()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/conversations/{conversation_id}/messages", response_model=List[schemas.ChatMessage])
-async def get_conversation_messages(conversation_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id, models.Conversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return db.query(models.ChatMessage).filter(models.ChatMessage.conversation_id == conversation_id).order_by(models.ChatMessage.timestamp).all()
+@app.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        # Verify ownership
+        conv_ref = db.collection('conversations').document(conversation_id)
+        conv = conv_ref.get()
+        if not conv.exists or conv.to_dict()['user_id'] != current_user['id']:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+            
+        msgs = conv_ref.collection('messages').order_by('timestamp').stream()
+        return [msg.to_dict() for msg in msgs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Saved Prompt Endpoints
-@app.post("/prompts", response_model=schemas.SavedPrompt)
-async def create_prompt(prompt: schemas.SavedPromptCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_prompt = models.SavedPrompt(**prompt.dict(), user_id=current_user.id)
-    db.add(db_prompt)
-    db.commit()
-    db.refresh(db_prompt)
-    return db_prompt
+@app.post("/prompts")
+async def create_prompt(prompt: schemas.SavedPromptCreate, current_user: dict = Depends(get_current_user)):
+    try:
+        new_prompt_ref = db.collection('prompts').document()
+        prompt_data = {
+            "id": new_prompt_ref.id,
+            "user_id": current_user['id'],
+            "title": prompt.title,
+            "content": prompt.content,
+            "tags": prompt.tags,
+            "created_at": datetime.utcnow()
+        }
+        new_prompt_ref.set(prompt_data)
+        return prompt_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/prompts", response_model=List[schemas.SavedPrompt])
-async def get_prompts(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(models.SavedPrompt).filter(models.SavedPrompt.user_id == current_user.id).order_by(models.SavedPrompt.created_at.desc()).all()
+@app.get("/prompts")
+async def get_prompts(current_user: dict = Depends(get_current_user)):
+    try:
+        docs = db.collection('prompts').where('user_id', '==', current_user['id']).order_by('created_at', direction=firestore.Query.DESCENDING).stream()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/prompts/{prompt_id}")
-async def delete_prompt(prompt_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_prompt = db.query(models.SavedPrompt).filter(models.SavedPrompt.id == prompt_id, models.SavedPrompt.user_id == current_user.id).first()
-    if not db_prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-    db.delete(db_prompt)
-    db.commit()
-    return {"status": "success"}
+async def delete_prompt(prompt_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        prompt_ref = db.collection('prompts').document(prompt_id)
+        prompt = prompt_ref.get()
+        if not prompt.exists or prompt.to_dict()['user_id'] != current_user['id']:
+            raise HTTPException(status_code=404, detail="Prompt not found")
+        prompt_ref.delete()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Admin Endpoints
-@app.get("/admin/users", response_model=List[schemas.UserActivity])
-async def get_all_users(current_user: models.User = Depends(get_current_admin), db: Session = Depends(get_db)):
-    # Get users with message count
-    users = db.query(models.User).all()
-    result = []
-    for user in users:
-        msg_count = db.query(func.count(models.ChatMessage.id)).filter(models.ChatMessage.user_id == user.id).scalar()
-        prompt_count = db.query(func.count(models.SavedPrompt.id)).filter(models.SavedPrompt.user_id == user.id).scalar()
-        user_data = schemas.UserActivity.from_orm(user)
-        user_data.message_count = msg_count
-        user_data.prompt_count = prompt_count
-        result.append(user_data)
-    return result
+@app.get("/admin/users")
+async def get_all_users(current_user: dict = Depends(get_current_admin)):
+    try:
+        users = db.collection('users').stream()
+        result = []
+        for user in users:
+            user_data = user.to_dict()
+            # Count messages (this might be expensive in Firestore, maybe skip or approximate)
+            # For now, let's just return user data
+            result.append(user_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/admin/activity", response_model=List[schemas.ChatMessage])
-async def get_all_activity(current_user: models.User = Depends(get_current_admin), db: Session = Depends(get_db)):
-    messages = db.query(models.ChatMessage).order_by(models.ChatMessage.timestamp.desc()).limit(100).all()
-    return messages
+@app.get("/admin/activity")
+async def get_all_activity(current_user: dict = Depends(get_current_admin)):
+    # This is hard in Firestore without a global collection group query
+    # For now, return empty or implement a specific 'activity' log collection
+    return []
 
 # Protected AI Endpoints
 class ChatRequest(BaseModel):
@@ -236,22 +203,29 @@ def read_root():
     return {"status": "Backend is running", "message": "Go to /docs to see the API"}
 
 @app.post("/chat")
-async def chat(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     # ... (Keep existing /chat for backward compatibility if needed, or redirect logic)
     # For now, let's keep /chat as blocking and add /chat/stream
     try:
-        # Save User Message
-        user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=request.message)
-        db.add(user_msg)
-        db.commit()
-
         # Generate Response
         response = chat_engine.generate_response(request.message, request.history)
         
-        # Save Assistant Message
-        ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=response)
-        db.add(ai_msg)
-        db.commit()
+        # Save to Firestore if conversation_id is present
+        if request.conversation_id:
+            conv_ref = db.collection('conversations').document(request.conversation_id)
+            # User Msg
+            conv_ref.collection('messages').add({
+                "role": "user",
+                "content": request.message,
+                "timestamp": datetime.utcnow()
+            })
+            # AI Msg
+            conv_ref.collection('messages').add({
+                "role": "assistant",
+                "content": response,
+                "timestamp": datetime.utcnow()
+            })
+            conv_ref.update({"updated_at": datetime.utcnow()})
         
         return {"response": response}
     except Exception as e:
@@ -261,7 +235,7 @@ async def chat(request: ChatRequest, current_user: models.User = Depends(get_cur
 
 # RAG Endpoints
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+async def upload_file(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     try:
         # Save file locally
         upload_dir = "uploads"
@@ -279,7 +253,7 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def chat_stream(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     try:
         # Check for RAG context
         context = ""
@@ -289,21 +263,14 @@ async def chat_stream(request: ChatRequest, current_user: models.User = Depends(
             print(f"Found {len(rag_docs)} relevant documents.")
 
         # Save User Message
-        user_msg = models.ChatMessage(
-            user_id=current_user.id, 
-            conversation_id=request.conversation_id,
-            role="user", 
-            content=request.message
-        )
-        db.add(user_msg)
-        db.commit()
-
-        # Update conversation timestamp
         if request.conversation_id:
-            conversation = db.query(models.Conversation).filter(models.Conversation.id == request.conversation_id).first()
-            if conversation:
-                conversation.updated_at = datetime.utcnow()
-                db.commit()
+            conv_ref = db.collection('conversations').document(request.conversation_id)
+            conv_ref.collection('messages').add({
+                "role": "user",
+                "content": request.message,
+                "timestamp": datetime.utcnow()
+            })
+            conv_ref.update({"updated_at": datetime.utcnow()})
 
         async def stream_generator():
             full_response = ""
@@ -313,6 +280,15 @@ async def chat_stream(request: ChatRequest, current_user: models.User = Depends(
             for token in chat_engine.generate_stream(augmented_message, request.history, request.language):
                 full_response += token
                 yield token
+            
+            # Save AI Message after generation
+            if request.conversation_id:
+                conv_ref = db.collection('conversations').document(request.conversation_id)
+                conv_ref.collection('messages').add({
+                    "role": "assistant",
+                    "content": full_response,
+                    "timestamp": datetime.utcnow()
+                })
             
             print(f"Generated response for conv {request.conversation_id}")
 
@@ -324,7 +300,7 @@ async def chat_stream(request: ChatRequest, current_user: models.User = Depends(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate-image")
-async def generate_image(request: ImageRequest, current_user: models.User = Depends(get_current_user)):
+async def generate_image(request: ImageRequest, current_user: dict = Depends(get_current_user)):
     try:
         # Generate image to a temporary file
         filename = "temp_generated.png"
