@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogIn, Mail, Lock, Sparkles, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, Bot, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -36,7 +36,9 @@ const Login = () => {
       >
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Sparkles className="w-12 h-12 text-yellow-400" />
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
+              <Bot className="w-9 h-9 text-white" />
+            </div>
           </div>
           <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
             Welcome Back
