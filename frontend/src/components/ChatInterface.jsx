@@ -262,7 +262,7 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                     <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`} />
-                            <span className="text-xs font-medium text-gray-400">{loading ? 'AI Thinking...' : 'AI Ready'}</span>
+                            <span className="text-xs font-medium text-gray-400">{loading ? 'Generating...' : 'AI Ready'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <button

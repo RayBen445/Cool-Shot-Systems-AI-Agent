@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -13,41 +14,50 @@ import os
 import base64
 
 from chat_engine import ChatEngine
-from image_engine import ImageEngine
+from rag_engine import RAGEngine
 import models
+import shutil
 import schemas
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
+import requests
 
-# Initialize Firebase Admin
+# Initialize FastAPI
+app = FastAPI()
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize Firebase Admin (Optional/Placeholder if needed later)
 if not firebase_admin._apps:
-    if os.path.exists("serviceAccountKey.json"):
-        cred = credentials.Certificate("serviceAccountKey.json")
-    else:
-        # Try getting from env var (for Hugging Face)
-        key_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
-        if key_json:
-            import json
-            cred_dict = json.loads(key_json)
-            cred = credentials.Certificate(cred_dict)
-        else:
-            print("Warning: No service account key found. Firebase features will fail.")
-            cred = None
-            
-    if cred:
-        firebase_admin.initialize_app(cred)
+    # ... (Keep existing logic or comment out if fully removing)
+    pass 
 
-if firebase_admin._apps:
-    db = firestore.client()
-else:
-    db = None
+db = None # Placeholder
 
-# Initialize engines
-print("Initializing AI Engines...")
-chat_engine = ChatEngine()
-image_engine = ImageEngine()
-rag_engine = RAGEngine()
-print("AI Engines Ready!")
+# Global engine instances (Lazy loaded)
+chat_engine = None
+rag_engine = None
+
+def get_chat_engine():
+    global chat_engine
+    if chat_engine is None:
+        print("Lazy loading Chat Engine...")
+        chat_engine = ChatEngine()
+    return chat_engine
+
+def get_rag_engine():
+    global rag_engine
+    if rag_engine is None:
+        print("Lazy loading RAG Engine...")
+        rag_engine = RAGEngine()
+    return rag_engine
 
 # Auth Dependency
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -203,94 +213,36 @@ def read_root():
     return {"status": "Backend is running", "message": "Go to /docs to see the API"}
 
 @app.post("/chat")
-async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
-    # ... (Keep existing /chat for backward compatibility if needed, or redirect logic)
-    # For now, let's keep /chat as blocking and add /chat/stream
+async def chat(request: ChatRequest):
     try:
+        # Get engine (lazy load)
+        engine = get_chat_engine()
         # Generate Response
-        response = chat_engine.generate_response(request.message, request.history)
-        
-        # Save to Firestore if conversation_id is present
-        if request.conversation_id:
-            conv_ref = db.collection('conversations').document(request.conversation_id)
-            # User Msg
-            conv_ref.collection('messages').add({
-                "role": "user",
-                "content": request.message,
-                "timestamp": datetime.utcnow()
-            })
-            # AI Msg
-            conv_ref.collection('messages').add({
-                "role": "assistant",
-                "content": response,
-                "timestamp": datetime.utcnow()
-            })
-            conv_ref.update({"updated_at": datetime.utcnow()})
-        
+        response = engine.generate_response(request.message, request.history)
         return {"response": response}
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# RAG Endpoints
-@app.post("/upload")
-async def upload_file(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    try:
-        # Save file locally
-        upload_dir = "uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        # Ingest into RAG
-        rag_engine.ingest_file(file_path)
-        
-        return {"filename": file.filename, "status": "ingested"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, current_user: dict = Depends(get_current_user)):
+async def chat_stream(request: ChatRequest):
     try:
         # Check for RAG context
         context = ""
-        rag_docs = rag_engine.search(request.message)
+        rag = get_rag_engine()
+        rag_docs = rag.search(request.message)
         if rag_docs:
             context = "\n\nRelevant Context:\n" + "\n".join(rag_docs) + "\n\n"
             print(f"Found {len(rag_docs)} relevant documents.")
 
-        # Save User Message
-        if request.conversation_id:
-            conv_ref = db.collection('conversations').document(request.conversation_id)
-            conv_ref.collection('messages').add({
-                "role": "user",
-                "content": request.message,
-                "timestamp": datetime.utcnow()
-            })
-            conv_ref.update({"updated_at": datetime.utcnow()})
-
         async def stream_generator():
-            full_response = ""
-            # Prepend context to the message sent to AI (but not saved in DB as user message)
+            # Prepend context to the message sent to AI
             augmented_message = context + request.message if context else request.message
             
-            for token in chat_engine.generate_stream(augmented_message, request.history, request.language):
-                full_response += token
+            engine = get_chat_engine()
+            for token in engine.generate_stream(augmented_message, request.history, request.language):
                 yield token
-            
-            # Save AI Message after generation
-            if request.conversation_id:
-                conv_ref = db.collection('conversations').document(request.conversation_id)
-                conv_ref.collection('messages').add({
-                    "role": "assistant",
-                    "content": full_response,
-                    "timestamp": datetime.utcnow()
-                })
-            
-            print(f"Generated response for conv {request.conversation_id}")
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
 
@@ -299,18 +251,28 @@ async def chat_stream(request: ChatRequest, current_user: dict = Depends(get_cur
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ... (Imports)
+import requests
+
+# ... (Chat Engine setup)
+
+# Image Service URL (Hardcoded for now, or env var)
+IMAGE_SERVICE_URL = "https://professorceo-cool-shot-ai-imagine.hf.space/generate-image"
+
 @app.post("/generate-image")
-async def generate_image(request: ImageRequest, current_user: dict = Depends(get_current_user)):
+async def generate_image(request: ImageRequest):
     try:
-        # Generate image to a temporary file
-        filename = "temp_generated.png"
-        image_engine.generate_image(request.prompt, output_path=filename)
-        
-        # Read and encode to base64 to send to frontend
-        with open(filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        # Call external Image Service
+        response = requests.post(IMAGE_SERVICE_URL, json={"prompt": request.prompt})
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Image Service Error")
             
-        return {"image_base64": encoded_string}
+        return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
