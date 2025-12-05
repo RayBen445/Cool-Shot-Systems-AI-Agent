@@ -169,7 +169,7 @@ Your backend (Python FastAPI) can be deployed to various platforms:
 
 ### Issue: "Page not found on refresh"
 - **Solution**: The `vercel.json` configuration handles this with rewrites
-- Make sure `vercel.json` is present in the `frontend` directory
+- The root `vercel.json` has been updated to include these rewrites
 
 ### Issue: CORS errors
 - **Solution**: Update your backend's CORS configuration to allow your Vercel domain:
