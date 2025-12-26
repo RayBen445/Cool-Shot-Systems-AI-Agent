@@ -14,11 +14,7 @@ const Sidebar = ({ onSelectConversation, onNewChat, onSelectPrompt, refreshTrigg
 
     const fetchConversations = async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations`);
             if (res.ok) setConversations(await res.json());
         } catch (err) {
             console.error("Failed to fetch conversations", err);
@@ -27,11 +23,7 @@ const Sidebar = ({ onSelectConversation, onNewChat, onSelectPrompt, refreshTrigg
 
     const fetchPrompts = async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/prompts`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/prompts`);
             if (res.ok) setPrompts(await res.json());
         } catch (err) {
             console.error("Failed to fetch prompts", err);
@@ -39,12 +31,12 @@ const Sidebar = ({ onSelectConversation, onNewChat, onSelectPrompt, refreshTrigg
     };
 
     return (
-        <div className="w-64 h-full bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col">
+        <div className="w-64 h-full bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col glass-heavy">
             {/* New Chat Button */}
             <div className="p-4">
                 <button
                     onClick={onNewChat}
-                    className="w-full flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl transition-all border border-white/10 shadow-lg group"
+                    className="w-full flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl transition-all border border-white/10 shadow-lg group backdrop-blur-sm"
                 >
                     <Plus className="w-5 h-5 text-cyan-400 group-hover:rotate-90 transition-transform" />
                     <span className="font-medium">New Chat</span>

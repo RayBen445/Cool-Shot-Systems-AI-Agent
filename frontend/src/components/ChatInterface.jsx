@@ -50,18 +50,14 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
 
     const fetchMessages = async (convId) => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations/${convId}/messages`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations/${convId}/messages`);
             if (res.ok) {
                 const data = await res.json();
-                // Transform backend messages to frontend format if needed
-                // Assuming backend returns [{role: 'user', content: '...'}, ...]
+                // Transform backend messages to frontend format
                 setMessages(data.map(msg => ({
                     text: msg.content,
                     isUser: msg.role === 'user',
-                    timestamp: new Date(msg.created_at).toLocaleTimeString()
+                    timestamp: new Date(msg.timestamp).toLocaleTimeString()
                 })));
             }
         } catch (err) {
@@ -122,12 +118,10 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
         if (!promptTitle.trim() || !input.trim()) return;
 
         try {
-            const token = localStorage.getItem('token');
             const res = await fetch(`${import.meta.env.VITE_API_URL}/prompts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     title: promptTitle,
@@ -150,19 +144,26 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
         if (!input.trim()) return;
 
         const userMessage = { text: input, isUser: true, timestamp: new Date().toLocaleTimeString() };
+        const currentInput = input;
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setLoading(true);
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/chat/stream?language=${language}${conversationId ? `&conversation_id=${conversationId}` : ''}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/chat/stream`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ message: input }),
+                body: JSON.stringify({ 
+                    message: currentInput,
+                    history: messages.filter(m => !m.isError).slice(-6).map(m => ({
+                        role: m.isUser ? 'user' : 'assistant',
+                        content: m.text
+                    })),
+                    language: language,
+                    conversation_id: conversationId
+                }),
             });
 
             if (!response.ok) throw new Error('Network response was not ok');
@@ -178,41 +179,14 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                 if (done) break;
 
                 const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') break;
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.content) {
-                                aiResponseText += parsed.content;
-                                setMessages(prev => {
-                                    const newMessages = [...prev];
-                                    const lastMessage = newMessages[newMessages.length - 1];
-                                    lastMessage.text = aiResponseText;
-                                    return newMessages;
-                                });
-                            }
-                        } catch (e) {
-                            console.error('Error parsing JSON chunk', e);
-                        }
-                    }
-                }
-            }
-
-            // If this was a new chat (no conversationId initially), we might want to refresh the sidebar
-            // But currently the backend handles creating a new conversation if ID is missing?
-            // Actually, our backend `chat_stream` creates a new conversation if ID is missing.
-            // Ideally, the backend should return the conversation ID so we can update the URL or state.
-            // For now, we rely on the user clicking "New Chat" or selecting a conversation.
-            // If we want to auto-select the new conversation, we'd need the backend to return the ID in the stream or a separate header.
-            // Let's assume for now the user stays in the "current" view until they switch.
-
-            if (language !== 'en') {
-                // Auto-speak if not English (optional feature, or based on user preference)
-                // speakText(aiResponseText);
+                aiResponseText += chunk;
+                
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMessage = newMessages[newMessages.length - 1];
+                    lastMessage.text = aiResponseText;
+                    return newMessages;
+                });
             }
 
         } catch (error) {
@@ -221,45 +195,43 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
         } finally {
             setLoading(false);
         }
-        const handleFileUpload = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+    };
 
-            const formData = new FormData();
-            formData.append('file', file);
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-            try {
-                setLoading(true);
-                const token = localStorage.getItem('token');
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: formData
-                });
+        const formData = new FormData();
+        formData.append('file', file);
 
-                if (res.ok) {
-                    const data = await res.json();
-                    setMessages(prev => [...prev, { text: `Uploaded ${data.filename}. You can now chat with this document.`, isUser: false, timestamp: new Date().toLocaleTimeString() }]);
-                } else {
-                    console.error("Upload failed");
-                    setMessages(prev => [...prev, { text: "Failed to upload file.", isUser: false, isError: true, timestamp: new Date().toLocaleTimeString() }]);
-                }
-            } catch (err) {
-                console.error(err);
-                setMessages(prev => [...prev, { text: "Error uploading file.", isUser: false, isError: true, timestamp: new Date().toLocaleTimeString() }]);
-            } finally {
-                setLoading(false);
+        try {
+            setLoading(true);
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setMessages(prev => [...prev, { text: `Uploaded ${data.filename}. You can now chat with this document.`, isUser: false, timestamp: new Date().toLocaleTimeString() }]);
+            } else {
+                console.error("Upload failed");
+                setMessages(prev => [...prev, { text: "Failed to upload file.", isUser: false, isError: true, timestamp: new Date().toLocaleTimeString() }]);
             }
-        };
+        } catch (err) {
+            console.error(err);
+            setMessages(prev => [...prev, { text: "Error uploading file.", isUser: false, isError: true, timestamp: new Date().toLocaleTimeString() }]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        return (
+    return (
             <div className="flex h-full gap-4">
                 {/* Main Chat Area */}
-                <div className={`flex flex-col h-full bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 ${showCanvas ? 'w-1/2' : 'w-full'}`}>
+                <div className={`flex flex-col h-full bg-gray-900/50 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 glass ${showCanvas ? 'w-1/2' : 'w-full'}`}>
                     {/* Chat Header / Settings */}
-                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/30 backdrop-blur-sm">
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`} />
                             <span className="text-xs font-medium text-gray-400">{loading ? 'Generating...' : 'AI Ready'}</span>
@@ -448,9 +420,9 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                             initial={{ width: 0, opacity: 0 }}
                             animate={{ width: '50%', opacity: 1 }}
                             exit={{ width: 0, opacity: 0 }}
-                            className="h-full bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col"
+                            className="h-full bg-gray-900/50 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col glass"
                         >
-                            <div className="p-4 border-b border-white/10 bg-black/20 flex justify-between items-center">
+                            <div className="p-4 border-b border-white/10 bg-black/30 backdrop-blur-sm flex justify-between items-center">
                                 <h3 className="font-medium text-white flex items-center gap-2">
                                     <span className="text-purple-400">✨</span> Canvas / Scratchpad
                                 </h3>

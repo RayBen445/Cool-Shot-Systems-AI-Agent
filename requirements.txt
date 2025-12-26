@@ -1,11 +1,3 @@
-torch
-torchvision
-torchaudio
-transformers==4.40.2
-diffusers==0.29.0
-accelerate
-protobuf
-sentencepiece
 fastapi
 uvicorn
 Pillow
@@ -15,11 +7,10 @@ python-jose[cryptography]
 python-multipart
 bcrypt
 duckduckgo-search
+groq
 langchain
 langchain-community
 langchain-text-splitters
 sentence-transformers
-firebase-admin
 faiss-cpu
 pypdf
-python-multipart

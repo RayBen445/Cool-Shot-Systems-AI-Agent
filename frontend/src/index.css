@@ -1,7 +1,30 @@
 @import "tailwindcss";
 
+/* Import Baby Font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&display=swap');
+
 body {
   font-family: 'Inter', sans-serif;
+}
+
+/* Use Baby font for headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Baloo 2', cursive, sans-serif;
+}
+
+/* Glassmorphism utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-heavy {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 ::-webkit-scrollbar {

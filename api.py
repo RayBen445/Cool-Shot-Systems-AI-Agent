@@ -1,25 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, List
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 import uvicorn
 import os
-import base64
+import uuid
 
 from chat_engine import ChatEngine
 from rag_engine import RAGEngine
-import models
-import shutil
-import schemas
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
 import requests
 
 # Initialize FastAPI
@@ -34,12 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Firebase Admin (Optional/Placeholder if needed later)
-if not firebase_admin._apps:
-    # ... (Keep existing logic or comment out if fully removing)
-    pass 
-
-db = None # Placeholder
+# In-Memory Storage (replaces Firebase/Firestore)
+# Structure: {conversation_id: {id, title, messages: [], created_at, updated_at}}
+conversations_db = {}
+prompts_db = {}
 
 # Global engine instances (Lazy loaded)
 chat_engine = None
@@ -59,166 +47,107 @@ def get_rag_engine():
         rag_engine = RAGEngine()
     return rag_engine
 
-# Auth Dependency
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    try:
-        decoded_token = auth.verify_id_token(token)
-        uid = decoded_token['uid']
-        # Get user data from Firestore
-        user_doc = db.collection('users').document(uid).get()
-        if not user_doc.exists:
-            # Create user if not exists (first login)
-            user_data = {
-                "email": decoded_token.get('email'),
-                "full_name": decoded_token.get('name', 'User'),
-                "created_at": datetime.utcnow(),
-                "is_admin": False
-            }
-            db.collection('users').document(uid).set(user_data)
-            return {**user_data, "id": uid}
-        
-        return {**user_doc.to_dict(), "id": uid}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication credentials: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-async def get_current_admin(current_user: dict = Depends(get_current_user)):
-    if not current_user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return current_user
-
-# Auth Endpoints
-# Note: Registration and Login are handled by Firebase on the Frontend.
-# The backend only verifies the ID token via get_current_user.
-
-@app.get("/users/me")
-async def read_users_me(current_user: dict = Depends(get_current_user)):
-    return current_user
-
-# Conversation Endpoints
-@app.post("/conversations")
-async def create_conversation(conversation: schemas.ConversationCreate, current_user: dict = Depends(get_current_user)):
-    try:
-        new_conv_ref = db.collection('conversations').document()
-        conv_data = {
-            "id": new_conv_ref.id,
-            "user_id": current_user['id'],
-            "title": conversation.title,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        new_conv_ref.set(conv_data)
-        return conv_data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/conversations")
-async def get_conversations(current_user: dict = Depends(get_current_user)):
-    try:
-        docs = db.collection('conversations').where('user_id', '==', current_user['id']).order_by('updated_at', direction=firestore.Query.DESCENDING).stream()
-        return [doc.to_dict() for doc in docs]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/conversations/{conversation_id}/messages")
-async def get_conversation_messages(conversation_id: str, current_user: dict = Depends(get_current_user)):
-    try:
-        # Verify ownership
-        conv_ref = db.collection('conversations').document(conversation_id)
-        conv = conv_ref.get()
-        if not conv.exists or conv.to_dict()['user_id'] != current_user['id']:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-            
-        msgs = conv_ref.collection('messages').order_by('timestamp').stream()
-        return [msg.to_dict() for msg in msgs]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Saved Prompt Endpoints
-@app.post("/prompts")
-async def create_prompt(prompt: schemas.SavedPromptCreate, current_user: dict = Depends(get_current_user)):
-    try:
-        new_prompt_ref = db.collection('prompts').document()
-        prompt_data = {
-            "id": new_prompt_ref.id,
-            "user_id": current_user['id'],
-            "title": prompt.title,
-            "content": prompt.content,
-            "tags": prompt.tags,
-            "created_at": datetime.utcnow()
-        }
-        new_prompt_ref.set(prompt_data)
-        return prompt_data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/prompts")
-async def get_prompts(current_user: dict = Depends(get_current_user)):
-    try:
-        docs = db.collection('prompts').where('user_id', '==', current_user['id']).order_by('created_at', direction=firestore.Query.DESCENDING).stream()
-        return [doc.to_dict() for doc in docs]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/prompts/{prompt_id}")
-async def delete_prompt(prompt_id: str, current_user: dict = Depends(get_current_user)):
-    try:
-        prompt_ref = db.collection('prompts').document(prompt_id)
-        prompt = prompt_ref.get()
-        if not prompt.exists or prompt.to_dict()['user_id'] != current_user['id']:
-            raise HTTPException(status_code=404, detail="Prompt not found")
-        prompt_ref.delete()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Admin Endpoints
-@app.get("/admin/users")
-async def get_all_users(current_user: dict = Depends(get_current_admin)):
-    try:
-        users = db.collection('users').stream()
-        result = []
-        for user in users:
-            user_data = user.to_dict()
-            # Count messages (this might be expensive in Firestore, maybe skip or approximate)
-            # For now, let's just return user data
-            result.append(user_data)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/admin/activity")
-async def get_all_activity(current_user: dict = Depends(get_current_admin)):
-    # This is hard in Firestore without a global collection group query
-    # For now, return empty or implement a specific 'activity' log collection
-    return []
-
-# Protected AI Endpoints
+# Pydantic Models for Request/Response
 class ChatRequest(BaseModel):
     message: str
     history: list = []
     language: str = "English"
-    conversation_id: Optional[int] = None
+    conversation_id: Optional[str] = None
 
 class ImageRequest(BaseModel):
     prompt: str
 
+class ConversationCreate(BaseModel):
+    title: str = "New Chat"
+
+class SavedPromptCreate(BaseModel):
+    title: str
+    content: str
+    tags: List[str] = []
+
+# Health Check
 @app.get("/")
 def read_root():
-    return {"status": "Backend is running", "message": "Go to /docs to see the API"}
+    return {"status": "Backend is running", "message": "Cool-Shot AI is ready"}
 
+# Simple Conversation Management (No Auth)
+@app.post("/conversations")
+async def create_conversation(conversation: ConversationCreate):
+    """Create a new conversation (anonymous)"""
+    conv_id = str(uuid.uuid4())
+    conv_data = {
+        "id": conv_id,
+        "title": conversation.title,
+        "messages": [],
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    conversations_db[conv_id] = conv_data
+    return conv_data
+
+@app.get("/conversations")
+async def get_conversations():
+    """Get all conversations (anonymous)"""
+    return list(conversations_db.values())
+
+@app.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str):
+    """Get messages for a conversation"""
+    if conversation_id not in conversations_db:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversations_db[conversation_id].get("messages", [])
+
+# Saved Prompts (No Auth)
+@app.post("/prompts")
+async def create_prompt(prompt: SavedPromptCreate):
+    """Save a prompt (anonymous)"""
+    prompt_id = str(uuid.uuid4())
+    prompt_data = {
+        "id": prompt_id,
+        "title": prompt.title,
+        "content": prompt.content,
+        "tags": prompt.tags,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    prompts_db[prompt_id] = prompt_data
+    return prompt_data
+
+@app.get("/prompts")
+async def get_prompts():
+    """Get all saved prompts (anonymous)"""
+    return list(prompts_db.values())
+
+@app.delete("/prompts/{prompt_id}")
+async def delete_prompt(prompt_id: str):
+    """Delete a prompt"""
+    if prompt_id not in prompts_db:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    del prompts_db[prompt_id]
+    return {"status": "success"}
+
+# AI Chat Endpoints (No Auth Required)
 @app.post("/chat")
 async def chat(request: ChatRequest):
+    """Simple chat endpoint (non-streaming)"""
     try:
-        # Get engine (lazy load)
         engine = get_chat_engine()
-        # Generate Response
-        response = engine.generate_response(request.message, request.history)
+        response = engine.generate_response(request.message, request.history, request.language)
+        
+        # Optionally save to conversation if ID provided
+        if request.conversation_id and request.conversation_id in conversations_db:
+            conv = conversations_db[request.conversation_id]
+            conv["messages"].append({
+                "role": "user",
+                "content": request.message,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            conv["messages"].append({
+                "role": "assistant",
+                "content": response,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            conv["updated_at"] = datetime.utcnow().isoformat()
+        
         return {"response": response}
     except Exception as e:
         import traceback
@@ -227,22 +156,44 @@ async def chat(request: ChatRequest):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    """Streaming chat endpoint with optional RAG context"""
     try:
         # Check for RAG context
         context = ""
-        rag = get_rag_engine()
-        rag_docs = rag.search(request.message)
-        if rag_docs:
-            context = "\n\nRelevant Context:\n" + "\n".join(rag_docs) + "\n\n"
-            print(f"Found {len(rag_docs)} relevant documents.")
+        try:
+            rag = get_rag_engine()
+            rag_docs = rag.search(request.message)
+            if rag_docs:
+                context = "\n\nRelevant Context:\n" + "\n".join(rag_docs) + "\n\n"
+                print(f"Found {len(rag_docs)} relevant documents.")
+        except Exception as e:
+            print(f"RAG search failed: {e}")
 
         async def stream_generator():
             # Prepend context to the message sent to AI
             augmented_message = context + request.message if context else request.message
             
             engine = get_chat_engine()
+            collected_response = ""
+            
             for token in engine.generate_stream(augmented_message, request.history, request.language):
+                collected_response += token
                 yield token
+            
+            # Optionally save to conversation if ID provided
+            if request.conversation_id and request.conversation_id in conversations_db:
+                conv = conversations_db[request.conversation_id]
+                conv["messages"].append({
+                    "role": "user",
+                    "content": request.message,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                conv["messages"].append({
+                    "role": "assistant",
+                    "content": collected_response,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                conv["updated_at"] = datetime.utcnow().isoformat()
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
 
@@ -251,28 +202,19 @@ async def chat_stream(request: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ... (Imports)
-import requests
-
-# ... (Chat Engine setup)
-
-# Image Service URL (Hardcoded for now, or env var)
+# Image Generation Endpoint (External Service)
 IMAGE_SERVICE_URL = "https://professorceo-cool-shot-ai-imagine.hf.space/generate-image"
 
 @app.post("/generate-image")
 async def generate_image(request: ImageRequest):
+    """Generate an image using external service"""
     try:
-        # Call external Image Service
-        response = requests.post(IMAGE_SERVICE_URL, json={"prompt": request.prompt})
+        response = requests.post(IMAGE_SERVICE_URL, json={"prompt": request.prompt}, timeout=30)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Image Service Error")
-            
         return response.json()
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Image service timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

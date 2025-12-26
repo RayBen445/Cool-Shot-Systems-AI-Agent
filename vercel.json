@@ -3,17 +3,21 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/((?!assets/|vite.svg).*)",
+      "destination": "/index.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/favicon.ico",
       "destination": "/vite.svg",
       "permanent": false
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/((?!assets/|vite.svg).*)",
-      "destination": "/index.html"
     }
   ]
 }
