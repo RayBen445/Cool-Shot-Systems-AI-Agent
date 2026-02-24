@@ -221,7 +221,9 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
         } finally {
             setLoading(false);
         }
-        const handleFileUpload = async (e) => {
+    };
+
+    const handleFileUpload = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
@@ -474,6 +476,6 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                 </AnimatePresence>
             </div>
         );
-    };
+};
 
-    export default ChatInterface;
+export default ChatInterface;

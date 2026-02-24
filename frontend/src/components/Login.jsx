@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { LogIn, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -28,18 +29,21 @@ const Login = () => {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center px-4">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-md p-8 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl"
             >
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 mb-4 shadow-lg shadow-purple-500/30">
-                        <LogIn className="w-8 h-8 text-white" />
+                    <div className="flex items-center justify-center gap-3 mb-6">
+                        <img src={logo} alt="Cool-Shot AI Logo" className="w-12 h-12 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]" />
+                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 tracking-tight">
+                            Cool-Shot AI
+                        </h1>
                     </div>
                     <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-                    <p className="text-gray-400">Sign in to continue to Cool-Shot AI</p>
+                    <p className="text-gray-400">Sign in to continue your journey</p>
                 </div>
 
                 {error && (
@@ -87,7 +91,7 @@ const Login = () => {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-purple-500/40 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? (
                             <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -101,7 +105,7 @@ const Login = () => {
 
                 <div className="mt-8 text-center text-gray-400">
                     Don't have an account?{' '}
-                    <Link to="/register" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
+                    <Link to="/register" className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors">
                         Create one
                     </Link>
                 </div>
