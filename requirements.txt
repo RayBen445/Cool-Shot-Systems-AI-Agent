@@ -23,3 +23,6 @@ firebase-admin
 faiss-cpu
 pypdf
 python-multipart
+jose
+pydantic
+requests
