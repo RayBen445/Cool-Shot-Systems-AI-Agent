@@ -7,10 +7,11 @@ Full-stack AI chat application with a React frontend (Vite) and Python FastAPI b
 - **Frontend**: React + Vite, Tailwind CSS v3, Framer Motion, Firebase Auth — runs on port 5000
 - **Backend**: FastAPI + Uvicorn — runs on port 8000 (not active by default in Replit dev)
 - **Auth**: Firebase Authentication (client-side) + Firebase ID token verification (server-side)
-- **AI**: Microsoft Phi-3-mini-4k-instruct via HuggingFace Transformers (lazy-loaded)
-- **RAG**: LangChain + FAISS for document search
-- **Image Gen**: External HuggingFace Space endpoint
+- **AI Chat**: Groq cloud inference — `qwen-qwq-32b` model (expert at coding, reasoning, math)
+- **RAG**: LangChain + FAISS for document search (optional, lazy-loaded)
+- **Image Gen**: Pollinations AI (free, no API key, fast — triggered with `/imagine [prompt]`)
 - **Database**: Firestore for conversations, prompts, users
+- **Syntax Highlighting**: react-syntax-highlighter (Prism / oneDark theme)
 
 ## Workflows
 - **Start application**: `cd frontend && npm run dev` — port 5000, webview

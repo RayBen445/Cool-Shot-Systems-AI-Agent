@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, Volume2, VolumeX, Settings, Save, Plus, X, Moon, Sun, Paperclip, Sparkles, Bot, User, Copy, Check } from 'lucide-react';
+import { Send, Mic, Volume2, VolumeX, Settings, Save, Plus, X, Moon, Sun, Paperclip, Sparkles, Bot, User, Copy, Check, Image as ImageIcon, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 const TypingIndicator = () => (
   <div className="flex items-end gap-3">
@@ -33,6 +39,77 @@ const CopyButton = ({ text }) => {
   );
 };
 
+// Markdown renderer with syntax-highlighted code blocks
+const MarkdownContent = ({ content }) => (
+  <ReactMarkdown
+    components={{
+      code({ node, inline, className, children, ...props }) {
+        const match = /language-(\w+)/.exec(className || '');
+        if (!inline && match) {
+          return (
+            <div className="relative group my-2">
+              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <CopyButton text={String(children).replace(/\n$/, '')} />
+              </div>
+              <SyntaxHighlighter
+                style={oneDark}
+                language={match[1]}
+                PreTag="div"
+                customStyle={{
+                  borderRadius: '10px',
+                  fontSize: '0.82rem',
+                  margin: 0,
+                  background: 'rgba(0,0,0,0.5)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                }}
+                {...props}
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
+            </div>
+          );
+        }
+        return (
+          <code className="bg-black/30 text-violet-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono" {...props}>
+            {children}
+          </code>
+        );
+      },
+      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+      ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2 pl-2">{children}</ul>,
+      ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2 pl-2">{children}</ol>,
+      li: ({ children }) => <li className="text-slate-300">{children}</li>,
+      h1: ({ children }) => <h1 className="text-xl font-bold text-white mt-3 mb-2">{children}</h1>,
+      h2: ({ children }) => <h2 className="text-lg font-bold text-white mt-3 mb-1.5">{children}</h2>,
+      h3: ({ children }) => <h3 className="text-base font-semibold text-white mt-2 mb-1">{children}</h3>,
+      blockquote: ({ children }) => (
+        <blockquote className="border-l-2 border-violet-500/50 pl-4 my-2 text-slate-400 italic">{children}</blockquote>
+      ),
+      a: ({ children, href }) => (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline">{children}</a>
+      ),
+      strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+    }}
+  >
+    {content}
+  </ReactMarkdown>
+);
+
+// Generated image message
+const ImageMessage = ({ src, prompt }) => (
+  <div className="space-y-2">
+    <img
+      src={`data:image/png;base64,${src}`}
+      alt={prompt}
+      className="rounded-xl max-w-full border border-white/10 shadow-lg"
+    />
+    <p className="text-xs text-slate-500 italic">"{prompt}"</p>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 const LANGUAGES = [
   { code: 'en', label: 'English' },
   { code: 'es', label: 'Spanish' },
@@ -40,9 +117,18 @@ const LANGUAGES = [
   { code: 'de', label: 'German' },
   { code: 'zh', label: 'Chinese' },
 ];
-
 const LANG_CODES = { en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', zh: 'zh-CN' };
 
+const SUGGESTIONS = [
+  { icon: '💻', text: 'Write a Python function to sort a list of dictionaries by key' },
+  { icon: '🔍', text: 'Explain how React hooks work with examples' },
+  { icon: '🖼️', text: '/imagine a futuristic city at sunset, cinematic lighting' },
+  { icon: '🧮', text: 'Solve: What is the time complexity of merge sort?' },
+];
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -106,17 +192,17 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
 
   const toggleListening = () => {
     if (!recognition.current) return;
-    if (isListening) { recognition.current.stop(); }
+    if (isListening) recognition.current.stop();
     else { recognition.current.start(); setIsListening(true); }
   };
 
   const speakText = (text) => {
     if (synth.speaking) { synth.cancel(); setIsSpeaking(false); return; }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = LANG_CODES[language] || 'en-US';
-    utterance.onend = () => setIsSpeaking(false);
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = LANG_CODES[language] || 'en-US';
+    utt.onend = () => setIsSpeaking(false);
     setIsSpeaking(true);
-    synth.speak(utterance);
+    synth.speak(utt);
   };
 
   const handleSavePrompt = async () => {
@@ -138,25 +224,85 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
 
   const autoResize = () => {
     const el = textareaRef.current;
-    if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; }
+    if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
+  };
+
+  // Detect /imagine command and route to image generation
+  const isImageRequest = (text) => /^\/(imagine|image|img|draw|generate)\s+/i.test(text.trim());
+  const extractImagePrompt = (text) => text.trim().replace(/^\/(imagine|image|img|draw|generate)\s+/i, '');
+
+  const sendImageRequest = async (prompt) => {
+    setLoading(true);
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setMessages(prev => [...prev, {
+      text: `🖼️ Generating image: *${prompt}*`,
+      isUser: false,
+      timestamp: ts,
+      generating: true,
+    }]);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!res.ok) throw new Error('Image generation failed');
+      const data = await res.json();
+
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          text: '',
+          isUser: false,
+          timestamp: ts,
+          imageBase64: data.image_base64,
+          imagePrompt: prompt,
+        };
+        return updated;
+      });
+    } catch (err) {
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          text: 'Sorry, image generation failed. Please try again.',
+          isUser: false,
+          timestamp: ts,
+          isError: true,
+        };
+        return updated;
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userText = input.trim();
-    const userMessage = { text: userText, isUser: true, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    setMessages(prev => [...prev, userMessage]);
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setMessages(prev => [...prev, { text: userText, isUser: true, timestamp: ts }]);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    setLoading(true);
 
+    // Route to image generation if /imagine command
+    if (isImageRequest(userText)) {
+      return sendImageRequest(extractImagePrompt(userText));
+    }
+
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const url = `${import.meta.env.VITE_API_URL}/chat/stream?language=${language}${conversationId ? `&conversation_id=${conversationId}` : ''}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: userText, history: messages.map(m => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })) }),
+        body: JSON.stringify({
+          message: userText,
+          history: messages.map(m => ({ role: m.isUser ? 'user' : 'assistant', content: m.text }))
+        }),
       });
 
       if (!response.ok) throw new Error('Network error');
@@ -165,14 +311,13 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
       const decoder = new TextDecoder();
       let aiText = '';
 
-      setMessages(prev => [...prev, { text: '', isUser: false, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), streaming: true }]);
+      setMessages(prev => [...prev, { text: '', isUser: false, timestamp: ts, streaming: true }]);
       setLoading(false);
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        aiText += chunk;
+        aiText += decoder.decode(value, { stream: true });
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { ...updated[updated.length - 1], text: aiText };
@@ -192,8 +337,8 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
       setMessages(prev => [...prev, {
         text: 'Sorry, something went wrong. Please try again.',
         isUser: false,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isError: true
+        timestamp: ts,
+        isError: true,
       }]);
     }
   };
@@ -203,58 +348,50 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
       const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
-        body: formData
+        body: formData,
       });
       if (res.ok) {
         const data = await res.json();
-        setMessages(prev => [...prev, { text: `Uploaded **${data.filename}**. You can now chat with this document.`, isUser: false, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+        setMessages(prev => [...prev, { text: `**${data.filename}** uploaded and indexed. You can now ask questions about it.`, isUser: false, timestamp: ts }]);
       }
     } catch (err) {
-      setMessages(prev => [...prev, { text: 'Error uploading file.', isUser: false, isError: true, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+      setMessages(prev => [...prev, { text: 'Error uploading file.', isUser: false, isError: true, timestamp: ts }]);
     } finally {
       setLoading(false);
+      e.target.value = '';
     }
   };
 
-  const SUGGESTIONS = [
-    'Explain quantum computing simply',
-    'Write a Python hello world',
-    'Give me 3 creative business ideas',
-    'Summarize the water cycle',
-  ];
-
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <div className="flex flex-col h-full bg-[#080b14]">
-      {/* Chat toolbar */}
+
+      {/* Toolbar */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05] bg-[#0c1018]/40 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
-          <span className="text-[11px] font-medium text-slate-600">{loading ? 'Generating...' : 'AI Ready'}</span>
+          <span className="text-[11px] font-medium text-slate-600">{loading ? 'Thinking…' : 'AI Ready'}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-xl hover:bg-white/5 text-slate-600 hover:text-slate-300 transition-colors"
-            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          >
+          <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-white/5 text-slate-600 hover:text-slate-300 transition-colors" title="Toggle theme">
             {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <button
-            onClick={onNewChat}
-            className="p-2 rounded-xl hover:bg-white/5 text-slate-600 hover:text-slate-300 transition-colors"
-            title="New chat"
-          >
+          <button onClick={onNewChat} className="p-2 rounded-xl hover:bg-white/5 text-slate-600 hover:text-slate-300 transition-colors" title="New chat">
             <Plus size={15} />
           </button>
           <button
             onClick={() => setShowSettings(s => !s)}
             className={`p-2 rounded-xl transition-colors ${showSettings ? 'bg-violet-500/15 text-violet-400' : 'hover:bg-white/5 text-slate-600 hover:text-slate-300'}`}
+            title="Settings"
           >
             <Settings size={15} />
           </button>
@@ -270,10 +407,10 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
             exit={{ height: 0, opacity: 0 }}
             className="flex-shrink-0 overflow-hidden border-b border-white/[0.05] bg-[#0c1018]/60"
           >
-            <div className="px-5 py-4 flex items-center gap-6">
+            <div className="px-5 py-4 space-y-3">
               <div>
-                <label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider block mb-2">Language</label>
-                <div className="flex gap-1.5">
+                <label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider block mb-2">Response Language</label>
+                <div className="flex gap-1.5 flex-wrap">
                   {LANGUAGES.map(l => (
                     <button
                       key={l.code}
@@ -285,6 +422,9 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                   ))}
                 </div>
               </div>
+              <p className="text-[10px] text-slate-700">
+                Tip: Type <code className="text-violet-500">/imagine [prompt]</code> to generate images inline.
+              </p>
             </div>
           </motion.div>
         )}
@@ -302,19 +442,20 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20 flex items-center justify-center mb-5 animate-float">
               <Sparkles className="w-8 h-8 text-violet-400" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">How can I help you?</h2>
-            <p className="text-slate-500 text-sm mb-8">Ask me anything — I'm your AI assistant.</p>
-            <div className="grid grid-cols-2 gap-2 w-full">
+            <h2 className="text-xl font-bold text-white mb-2">How can I help you today?</h2>
+            <p className="text-slate-500 text-sm mb-8">I can write code, answer questions, generate images, and more.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
               {SUGGESTIONS.map((s, i) => (
                 <motion.button
                   key={i}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + i * 0.05 }}
-                  onClick={() => { setInput(s); textareaRef.current?.focus(); }}
-                  className="text-left px-4 py-3 glass rounded-xl hover:bg-white/6 border-transparent hover:border-violet-500/20 transition-all group text-sm text-slate-400 hover:text-slate-200"
+                  transition={{ delay: 0.05 + i * 0.05 }}
+                  onClick={() => { setInput(s.text); textareaRef.current?.focus(); }}
+                  className="text-left px-4 py-3 glass rounded-xl hover:bg-white/6 transition-all text-sm text-slate-400 hover:text-slate-200 flex items-start gap-2.5"
                 >
-                  {s}
+                  <span className="text-base">{s.icon}</span>
+                  <span>{s.text}</span>
                 </motion.button>
               ))}
             </div>
@@ -326,7 +467,7 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
             key={idx}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.25 }}
             className={`flex items-end gap-3 ${msg.isUser ? 'justify-end' : 'justify-start'}`}
           >
             {!msg.isUser && (
@@ -335,30 +476,47 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
               </div>
             )}
 
-            <div className={`max-w-[75%] group ${msg.isUser ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+            <div className={`max-w-[78%] group flex flex-col gap-1 ${msg.isUser ? 'items-end' : 'items-start'}`}>
               <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                 msg.isUser
                   ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-br-sm shadow-lg shadow-violet-900/30'
                   : msg.isError
                   ? 'glass border border-red-500/20 text-red-300 rounded-bl-sm'
-                  : 'glass text-slate-200 rounded-bl-sm message-ai'
+                  : 'glass text-slate-200 rounded-bl-sm'
               }`}>
-                {msg.isUser ? (
+                {msg.generating ? (
+                  <div className="flex items-center gap-2 text-slate-400 text-xs">
+                    <Loader size={13} className="animate-spin" />
+                    Generating image…
+                  </div>
+                ) : msg.imageBase64 ? (
+                  <ImageMessage src={msg.imageBase64} prompt={msg.imagePrompt} />
+                ) : msg.isUser ? (
                   <p className="whitespace-pre-wrap">{msg.text}</p>
                 ) : (
-                  <ReactMarkdown>{msg.text || ' '}</ReactMarkdown>
-                )}
-                {msg.streaming && (
-                  <span className="inline-block w-1 h-4 bg-violet-400 rounded-full animate-pulse ml-1 align-middle" />
+                  <>
+                    <MarkdownContent content={msg.text || ' '} />
+                    {msg.streaming && (
+                      <span className="inline-block w-0.5 h-4 bg-violet-400 rounded-full animate-pulse ml-0.5 align-middle" />
+                    )}
+                  </>
                 )}
               </div>
-              <div className={`flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity ${msg.isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+
+              {/* Message actions row */}
+              <div className={`flex items-center gap-1.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity ${msg.isUser ? 'flex-row-reverse' : 'flex-row'}`}>
                 <span className="text-[10px] text-slate-700">{msg.timestamp}</span>
-                {!msg.isUser && <CopyButton text={msg.text} />}
-                {!msg.isUser && (
-                  <button onClick={() => speakText(msg.text)} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-600 hover:text-slate-400 transition-colors">
-                    {isSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                  </button>
+                {!msg.isUser && msg.text && !msg.imageBase64 && (
+                  <>
+                    <CopyButton text={msg.text} />
+                    <button
+                      onClick={() => speakText(msg.text)}
+                      className="p-1.5 rounded-lg hover:bg-white/5 text-slate-600 hover:text-slate-400 transition-colors"
+                      title="Read aloud"
+                    >
+                      {isSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -371,7 +529,7 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
           </motion.div>
         ))}
 
-        {loading && <TypingIndicator />}
+        {loading && !messages[messages.length - 1]?.generating && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -387,7 +545,7 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
             >
               <input
                 type="text"
-                placeholder="Name this prompt..."
+                placeholder="Name this prompt…"
                 value={promptTitle}
                 onChange={e => setPromptTitle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSavePrompt()}
@@ -406,18 +564,18 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
               <button
                 onClick={() => setShowSavePrompt(s => !s)}
                 className={`p-2 rounded-xl transition-all ${showSavePrompt ? 'bg-violet-500/20 text-violet-400' : 'text-slate-600 hover:text-slate-400 hover:bg-white/5'}`}
-                title="Save prompt"
+                title="Save as prompt"
               >
                 <Save size={16} />
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 rounded-xl text-slate-600 hover:text-slate-400 hover:bg-white/5 transition-all"
-                title="Upload file"
+                title="Upload file for Q&A"
               >
                 <Paperclip size={16} />
               </button>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.txt,.md" />
             </div>
 
             <textarea
@@ -425,9 +583,9 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
               value={input}
               onChange={e => { setInput(e.target.value); autoResize(); }}
               onKeyDown={handleKeyDown}
-              placeholder="Message Cool-Shot AI…"
+              placeholder="Message Cool-Shot AI… (try /imagine a sunset over the ocean)"
               rows={1}
-              className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-600 resize-none py-2 max-h-36 leading-relaxed"
+              className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-600 resize-none py-2 max-h-40 leading-relaxed"
             />
 
             <div className="flex items-center gap-1 pb-1">
@@ -444,13 +602,16 @@ const ChatInterface = ({ conversationId, onNewChat, onPromptSaved }) => {
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
                 className="p-2.5 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white transition-all shadow-lg shadow-violet-900/30 disabled:opacity-30 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0"
+                title="Send (Enter)"
               >
                 <Send size={16} />
               </button>
             </div>
           </div>
         </div>
-        <p className="text-center text-[10px] text-slate-700 mt-2">Cool-Shot AI may make mistakes. Verify important information.</p>
+        <p className="text-center text-[10px] text-slate-700 mt-2">
+          Powered by Groq · Type <span className="text-slate-600">/imagine</span> to generate images
+        </p>
       </div>
     </div>
   );
