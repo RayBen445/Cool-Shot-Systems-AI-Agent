@@ -267,17 +267,12 @@ async def chat_stream(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-IMAGE_SERVICE_URL = "https://professorceo-cool-shot-ai-imagine.hf.space/generate-image"
-
 @app.post("/generate-image")
 async def generate_image(request: ImageRequest):
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(IMAGE_SERVICE_URL, json={"prompt": request.prompt})
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail="Image Service Error")
-            return response.json()
+        from image_service.generate import generate_image_base64
+        img_b64 = generate_image_base64(request.prompt)
+        return {"image_base64": img_b64, "prompt": request.prompt}
     except Exception as e:
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

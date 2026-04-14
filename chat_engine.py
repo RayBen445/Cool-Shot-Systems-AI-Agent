@@ -1,7 +1,7 @@
-import os
-import json
-import httpx
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig
 import asyncio
+from threading import Thread
 
 # --- 1. Mode Configuration ---
 class ModeConfig:
@@ -12,7 +12,6 @@ class ModeConfig:
         "docs": "Generate structured written content. Use clear headings, bullet points, and high readability. Act as a technical writer."
     }
 
-    # Command aliases mapped to modes
     ALIASES = {
         "/chat": "chat",
         "/code": "code",
@@ -28,7 +27,7 @@ BASE_INSTRUCTION = (
     "You are the DevOS system intelligence. Follow these rules strictly:\n"
     "- Prioritize precision over verbosity.\n"
     "- Output must be structured and easy to parse.\n"
-    "- Do not use generic assistant language (e.g., 'I am an AI', 'Sure, I can help').\n"
+    "- Do not use generic assistant language.\n"
     "- Focus entirely on execution and direct answers.\n"
 )
 
@@ -36,7 +35,6 @@ BASE_INSTRUCTION = (
 class CommandParser:
     @staticmethod
     def parse(user_input: str, default_mode: str = "chat"):
-        """Extracts mode command from input if present and returns the mode and clean input."""
         words = user_input.split()
         if not words:
             return default_mode, user_input
@@ -53,7 +51,6 @@ class CommandParser:
 class PromptBuilder:
     @staticmethod
     def build(user_input: str, mode: str, context: dict = None) -> str:
-        """Constructs the deterministic system prompt based on mode and context."""
         context = context or {}
         mode_instruction = ModeConfig.MODES.get(mode, ModeConfig.MODES["chat"])
 
@@ -65,28 +62,40 @@ class PromptBuilder:
         if context:
             prompt_parts.append("[[CONTEXT]]")
             for key, value in context.items():
-                if value:
+                if value and key not in ["current_mode", "language"]:
                     prompt_parts.append(f"{key.upper()}: {value}")
-
-        prompt_parts.append(f"\n[[USER INPUT]]\n{user_input}")
 
         return "\n".join(prompt_parts)
 
-# --- 5. API Wrapper / Interaction Layer ---
-HF_SPACE_URL = "https://professorceo-coolshot-ai-backend.hf.space"
-
 class ChatEngine:
-    """Modular AI interaction layer handling prompt orchestration and external API communication."""
+    def __init__(self):
+        print("Loading DevOS Chat Model (Phi-4 with 4-bit quantization)... this may take a minute.")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Running on device: {self.device}")
 
-    def __init__(self, use_local=False):
-        # Allow easy swapping to vLLM or other providers later
-        self.stream_url = f"{HF_SPACE_URL}/chat/stream"
-        self.chat_url = f"{HF_SPACE_URL}/chat"
-        self.client = httpx.AsyncClient(timeout=120.0)
-        print(f"ChatEngine initialized — API Provider: HuggingFace Space")
+        model_id = "microsoft/phi-4"
+
+        torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
+
+        quantization_config = None
+        if self.device == "cuda":
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch_dtype,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4"
+            )
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            device_map="auto" if self.device == "cuda" else self.device,
+            torch_dtype=torch_dtype,
+            trust_remote_code=True,
+            quantization_config=quantization_config,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
 
     async def generate_response(self, user_input: str, history: list = None, language: str = "English", context: dict = None):
-        """Standard non-streaming generation."""
         stream = self.generate_stream(user_input, history, language, context)
         response_text = ""
         async for chunk in stream:
@@ -94,65 +103,62 @@ class ChatEngine:
         return response_text
 
     async def generate_stream(self, user_input: str, history: list = None, language: str = "English", context: dict = None):
-        """Asynchronous streaming generation with full prompt orchestration."""
+        from transformers import TextIteratorStreamer
+
         history = history or []
         context = context or {}
 
-        # 1. Parse mode command from user input
+        # 1. Parse Mode
         current_mode = context.get("current_mode", "chat")
         mode, clean_input = CommandParser.parse(user_input, default_mode=current_mode)
 
-        # Update context
         context["current_mode"] = mode
-        context["language"] = language
 
         # 2. Orchestrate Prompt
         orchestrated_system_prompt = PromptBuilder.build(clean_input, mode, context)
 
-        # 3. Construct Messages Array
-        messages = [
-            {"role": "system", "content": orchestrated_system_prompt}
-        ]
+        messages = [{"role": "system", "content": orchestrated_system_prompt}]
 
         for m in history:
             if isinstance(m, dict) and "role" in m and "content" in m:
-                # Filter out old system messages from history to prevent confusion
                 if m["role"] != "system":
                     messages.append({"role": m["role"], "content": m["content"]})
 
-        # Note: We send the clean_input directly to the API, as the orchestration
-        # is handled in the system prompt. If the API doesn't support system prompts
-        # well, we can inject it into the final user message.
+        messages.append({"role": "user", "content": clean_input})
 
-        payload = {
-            "message": clean_input,
-            "history": messages, # Pass orchestrated history
-            "language": language
-        }
+        # 3. Tokenize
+        model_inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.device)
 
-        # 4. API Execution
-        try:
-            async with self.client.stream("POST", self.stream_url, json=payload) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_text():
-                    if chunk:
-                        yield chunk
-        except httpx.HTTPStatusError as e:
-            # Fallback to non-streaming if stream fails
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        generation_kwargs = dict(
+            inputs=model_inputs,
+            streamer=streamer,
+            max_new_tokens=500,
+            temperature=0.7,
+            do_sample=True,
+        )
+
+        # 4. Run Generation
+        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        # 5. Yield Tokens
+        # The streamer is a synchronous iterator that blocks on a queue.
+        # We must pull from it asynchronously to avoid blocking the FastAPI event loop.
+        import queue
+        while True:
             try:
-                resp = await self.client.post(self.chat_url, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                yield data.get("response", "")
-            except Exception as fallback_err:
-                yield f"[Error contacting API: {fallback_err}]"
-        except Exception as e:
-            yield f"[Error: {str(e)}]"
+                # get next token from streamer in a thread to avoid blocking the event loop
+                new_text = await asyncio.to_thread(next, streamer)
+                yield new_text
+                await asyncio.sleep(0) # Yield control
+            except StopIteration:
+                break
 
     async def close(self):
-        await self.client.aclose()
+        pass
 
-# Example usage integration (local testing)
 if __name__ == "__main__":
     async def run_test():
         engine = ChatEngine()
@@ -163,6 +169,5 @@ if __name__ == "__main__":
         async for token in engine.generate_stream("/code write a python script to fetch a url"):
             print(token, end="", flush=True)
         print("\n")
-        await engine.close()
 
     asyncio.run(run_test())
