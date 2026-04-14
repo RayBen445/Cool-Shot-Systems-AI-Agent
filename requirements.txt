@@ -1,3 +1,11 @@
+torch
+torchvision
+torchaudio
+transformers==4.40.2
+diffusers==0.29.0
+accelerate
+protobuf
+sentencepiece
 fastapi
 uvicorn
 Pillow
@@ -14,4 +22,6 @@ sentence-transformers
 firebase-admin
 faiss-cpu
 pypdf
-requests
+python-multipart
+httpx
+bitsandbytes
