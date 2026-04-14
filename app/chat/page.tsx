@@ -9,6 +9,7 @@ import { ChatInput } from "@/components/chat/chat-input"
 import { ModeSelector } from "@/components/chat/mode-selector"
 import { ArtifactPanel } from "@/components/chat/artifact-panel"
 import { streamChatMessage } from "@/lib/api"
+import { ProtectedPage } from "@/lib/protected-page"
 
 export interface Message {
   id: string
@@ -89,7 +90,7 @@ const MODES = [
   },
 ]
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { user, loading } = useAuth()
   const router = useRouter()
 
@@ -104,13 +105,6 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login")
-    }
-  }, [user, loading, router])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -233,14 +227,6 @@ export default function ChatPage() {
     setShowArtifactPanel(true)
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    )
-  }
-
   return (
     <div className="flex h-full flex-1">
       {/* Main Chat Area */}
@@ -283,5 +269,13 @@ export default function ChatPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <ProtectedPage>
+      <ChatPageContent />
+    </ProtectedPage>
   )
 }
