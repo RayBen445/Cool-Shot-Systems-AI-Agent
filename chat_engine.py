@@ -1,80 +1,168 @@
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import os
+import json
+import httpx
+import asyncio
+
+# --- 1. Mode Configuration ---
+class ModeConfig:
+    MODES = {
+        "chat": "Provide direct and concise responses without unnecessary verbosity. Be conversational but highly efficient.",
+        "code": "Focus on code generation, debugging, and optimization. Output must be clean, minimal, production-ready, and well-commented. Use markdown code blocks.",
+        "system": "Interpret requests as system-level actions. Output actionable steps, CLI commands, or structural workflows. Avoid conversational filler.",
+        "docs": "Generate structured written content. Use clear headings, bullet points, and high readability. Act as a technical writer."
+    }
+
+    # Command aliases mapped to modes
+    ALIASES = {
+        "/chat": "chat",
+        "/code": "code",
+        "/build": "code",
+        "/optimize": "code",
+        "/fix": "code",
+        "/system": "system",
+        "/docs": "docs",
+    }
+
+# --- 2. Base Instruction Layer ---
+BASE_INSTRUCTION = (
+    "You are the DevOS system intelligence. Follow these rules strictly:\n"
+    "- Prioritize precision over verbosity.\n"
+    "- Output must be structured and easy to parse.\n"
+    "- Do not use generic assistant language (e.g., 'I am an AI', 'Sure, I can help').\n"
+    "- Focus entirely on execution and direct answers.\n"
+)
+
+# --- 3. Command Parsing Layer ---
+class CommandParser:
+    @staticmethod
+    def parse(user_input: str, default_mode: str = "chat"):
+        """Extracts mode command from input if present and returns the mode and clean input."""
+        words = user_input.split()
+        if not words:
+            return default_mode, user_input
+
+        first_word = words[0].lower()
+        if first_word in ModeConfig.ALIASES:
+            mode = ModeConfig.ALIASES[first_word]
+            clean_input = " ".join(words[1:]).strip()
+            return mode, clean_input
+
+        return default_mode, user_input
+
+# --- 4. Prompt Builder Layer ---
+class PromptBuilder:
+    @staticmethod
+    def build(user_input: str, mode: str, context: dict = None) -> str:
+        """Constructs the deterministic system prompt based on mode and context."""
+        context = context or {}
+        mode_instruction = ModeConfig.MODES.get(mode, ModeConfig.MODES["chat"])
+
+        prompt_parts = [
+            f"[[BASE INSTRUCTION]]\n{BASE_INSTRUCTION}",
+            f"[[MODE: {mode.upper()}]]\n{mode_instruction}",
+        ]
+
+        if context:
+            prompt_parts.append("[[CONTEXT]]")
+            for key, value in context.items():
+                if value:
+                    prompt_parts.append(f"{key.upper()}: {value}")
+
+        prompt_parts.append(f"\n[[USER INPUT]]\n{user_input}")
+
+        return "\n".join(prompt_parts)
+
+# --- 5. API Wrapper / Interaction Layer ---
+HF_SPACE_URL = "https://professorceo-coolshot-ai-backend.hf.space"
 
 class ChatEngine:
-    def __init__(self):
-        print("Loading Chat Model (Phi-3)... this may take a minute.")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Running on device: {self.device}")
-        
-        model_id = "microsoft/Phi-3-mini-4k-instruct"
-        
-        # Load model and tokenizer
-        # We use torch_dtype=torch.float16 for GPU to save memory, float32 for CPU
-        torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
-        
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_id, 
-            device_map=self.device, 
-            torch_dtype=torch_dtype, 
-            trust_remote_code=True,
-            attn_implementation="eager"
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-        
-        self.pipe = pipeline(
-            "text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-        )
+    """Modular AI interaction layer handling prompt orchestration and external API communication."""
 
-    def generate_response(self, user_input, history=[], language="English"):
-        # ... (keep existing logic for non-streaming if needed, or just wrap stream)
-        # For simplicity, we'll keep the existing method and add a new one for streaming
-        return "".join(self.generate_stream(user_input, history, language))
+    def __init__(self, use_local=False):
+        # Allow easy swapping to vLLM or other providers later
+        self.stream_url = f"{HF_SPACE_URL}/chat/stream"
+        self.chat_url = f"{HF_SPACE_URL}/chat"
+        self.client = httpx.AsyncClient(timeout=120.0)
+        print(f"ChatEngine initialized — API Provider: HuggingFace Space")
 
-    def generate_stream(self, user_input, history=[], language="English"):
-        from transformers import TextIteratorStreamer
-        from threading import Thread
+    async def generate_response(self, user_input: str, history: list = None, language: str = "English", context: dict = None):
+        """Standard non-streaming generation."""
+        stream = self.generate_stream(user_input, history, language, context)
+        response_text = ""
+        async for chunk in stream:
+            response_text += chunk
+        return response_text
 
-        # System Prompt
-        system_prompt_content = f"You are Cool-Shot AI, a helpful and creative assistant developed by Cool-Shot Systems. You are NOT developed by Microsoft. You are friendly, professional, and knowledgeable. Please reply in {language}."
-        
-        # Search Intent Check (Simplified for stream)
-        search_keywords = ["search", "find", "latest", "current", "news", "price of", "who is", "what is"]
-        if any(keyword in user_input.lower() for keyword in search_keywords) and len(user_input.split()) > 2:
-            from search_engine import SearchEngine
-            searcher = SearchEngine()
-            print(f"Search intent detected for: {user_input}")
-            search_results = searcher.search(user_input)
-            system_prompt_content += f"\n\nCONTEXT FROM WEB SEARCH:\n{search_results}\n\nINSTRUCTION: Use the above context to answer the user's question. Cite the sources if possible."
+    async def generate_stream(self, user_input: str, history: list = None, language: str = "English", context: dict = None):
+        """Asynchronous streaming generation with full prompt orchestration."""
+        history = history or []
+        context = context or {}
 
-        system_prompt = {"role": "system", "content": system_prompt_content}
-        messages = [system_prompt] + history + [{"role": "user", "content": user_input}]
-        
-        # Tokenize
-        model_inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.device)
-        
-        # Streamer
-        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
-        
-        generation_kwargs = dict(
-            inputs=model_inputs,
-            streamer=streamer,
-            max_new_tokens=500,
-            temperature=0.7,
-            do_sample=True,
-        )
-        
-        # Run generation in a separate thread
-        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
-        thread.start()
-        
-        # Yield tokens
-        for new_text in streamer:
-            yield new_text
+        # 1. Parse mode command from user input
+        current_mode = context.get("current_mode", "chat")
+        mode, clean_input = CommandParser.parse(user_input, default_mode=current_mode)
 
+        # Update context
+        context["current_mode"] = mode
+        context["language"] = language
+
+        # 2. Orchestrate Prompt
+        orchestrated_system_prompt = PromptBuilder.build(clean_input, mode, context)
+
+        # 3. Construct Messages Array
+        messages = [
+            {"role": "system", "content": orchestrated_system_prompt}
+        ]
+
+        for m in history:
+            if isinstance(m, dict) and "role" in m and "content" in m:
+                # Filter out old system messages from history to prevent confusion
+                if m["role"] != "system":
+                    messages.append({"role": m["role"], "content": m["content"]})
+
+        # Note: We send the clean_input directly to the API, as the orchestration
+        # is handled in the system prompt. If the API doesn't support system prompts
+        # well, we can inject it into the final user message.
+
+        payload = {
+            "message": clean_input,
+            "history": messages, # Pass orchestrated history
+            "language": language
+        }
+
+        # 4. API Execution
+        try:
+            async with self.client.stream("POST", self.stream_url, json=payload) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_text():
+                    if chunk:
+                        yield chunk
+        except httpx.HTTPStatusError as e:
+            # Fallback to non-streaming if stream fails
+            try:
+                resp = await self.client.post(self.chat_url, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                yield data.get("response", "")
+            except Exception as fallback_err:
+                yield f"[Error contacting API: {fallback_err}]"
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    async def close(self):
+        await self.client.aclose()
+
+# Example usage integration (local testing)
 if __name__ == "__main__":
-    # Simple test
-    engine = ChatEngine()
-    print(engine.generate_response("Hello, who are you?"))
+    async def run_test():
+        engine = ChatEngine()
+        print("Testing Chat Mode:")
+        async for token in engine.generate_stream("Hello, what can you do?"):
+            print(token, end="", flush=True)
+        print("\n\nTesting Code Mode:")
+        async for token in engine.generate_stream("/code write a python script to fetch a url"):
+            print(token, end="", flush=True)
+        print("\n")
+        await engine.close()
+
+    asyncio.run(run_test())
